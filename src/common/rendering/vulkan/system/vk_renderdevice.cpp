@@ -142,6 +142,14 @@ VulkanRenderDevice::VulkanRenderDevice(void *hMonitor, bool fullscreen, std::sha
 // no-arg SystemBaseFrameBuffer constructor, added specifically for this). reuses the
 // *same* VulkanInstance the primary device already created rather than standing up a
 // redundant second one - one VkInstance, two VkDevices under it.
+//
+// physicalDeviceIndex indexes into *this builder's own* FindDevices() result (no surface,
+// so no swapchain requirement) - not the raw vkEnumeratePhysicalDevices order, and not the
+// primary's own filtered list either (that one requires swapchain support via .Surface()).
+// a caller picking which index to pass needs to build a matching no-surface candidate
+// list itself before comparing against it - see the now-reverted persistent-peer attempt
+// in git history for why, and docs/milestones.md for the actual blocker that caused the
+// revert.
 VulkanRenderDevice::VulkanRenderDevice(std::shared_ptr<VulkanInstance> instance, int physicalDeviceIndex) :
 	Super()
 {
@@ -150,7 +158,9 @@ VulkanRenderDevice::VulkanRenderDevice(std::shared_ptr<VulkanInstance> instance,
 	VulkanDeviceBuilder builder;
 	builder.OptionalRayQuery();
 	builder.SelectDevice(physicalDeviceIndex);
-	SupportedDevices = builder.FindDevices(instance);
+	// deliberately not touching the SupportedDevices global here - that one drives
+	// vk_listdevices/vk_device for the *primary*, and this constructor's FindDevices()
+	// result (no surface requirement) isn't the same list the primary is showing the user.
 	device = builder.Create(instance);
 }
 
