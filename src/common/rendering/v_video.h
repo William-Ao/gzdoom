@@ -223,6 +223,10 @@ public:
 	// Delete any resources that need to be deleted after restarting with a different IWAD
 	virtual void SetTextureFilterMode() {}
 	virtual IHardwareTexture *CreateHardwareTexture(int numchannels) { return nullptr; }
+	// dual-GPU bridge hook: called right after a hardware texture is (newly) created for
+	// this device, so a backend with a peer device can eagerly duplicate the same upload
+	// onto it. no-op by default - only the Vulkan backend currently has a concept of a peer.
+	virtual void DuplicateTextureToPeer(FTexture *tex, int translation, int scaleflags) {}
 	virtual void PrecacheMaterial(FMaterial *mat, int translation) {}
 	virtual FMaterial* CreateMaterial(FGameTexture* tex, int scaleflags);
 	virtual void BeginFrame() {}

@@ -445,6 +445,28 @@ FMaterial* VulkanRenderDevice::CreateMaterial(FGameTexture* tex, int scaleflags)
 	return new VkMaterial(this, tex, scaleflags);
 }
 
+// dual-GPU bridge: called from FTexture::GetHardwareTexture() right after the primary
+// (this) creates its own hardware texture for a translation/scaleflags combo it's never
+// needed before. if a peer device exists, eagerly create and upload the same texture data
+// on it too, into slot 1 of the same container - textures are static/read-mostly, so this
+// duplicates the CPU-side upload rather than sharing GPU memory across devices (the latter
+// is what the compositor's D3D12 bridge exists for, for the one thing that actually needs
+// it: the finished rendered frame, not every texture the level uses).
+void VulkanRenderDevice::DuplicateTextureToPeer(FTexture* tex, int translation, int scaleflags)
+{
+	auto peer = GetPeerDevice();
+	if (!peer)
+		return;
+
+	if (tex->SystemTextures.GetHardwareTexture(translation, scaleflags, 1) != nullptr)
+		return; // already duplicated
+
+	bool indexed = scaleflags & CTF_Indexed;
+	auto peerTex = static_cast<VkHardwareTexture*>(peer->CreateHardwareTexture(indexed ? 1 : 4));
+	tex->SystemTextures.AddHardwareTexture(translation, scaleflags, peerTex, 1);
+	peerTex->GetImage(tex, translation, scaleflags); // force the upload now rather than leaving it lazy - nothing will ever draw with the peer's copy to trigger it later
+}
+
 IVertexBuffer *VulkanRenderDevice::CreateVertexBuffer()
 {
 	return GetBufferManager()->CreateVertexBuffer();

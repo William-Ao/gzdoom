@@ -85,6 +85,7 @@ public:
 
 	IHardwareTexture *CreateHardwareTexture(int numchannels) override;
 	FMaterial* CreateMaterial(FGameTexture* tex, int scaleflags) override;
+	void DuplicateTextureToPeer(FTexture* tex, int translation, int scaleflags) override;
 	IVertexBuffer *CreateVertexBuffer() override;
 	IIndexBuffer *CreateIndexBuffer() override;
 	IDataBuffer *CreateDataBuffer(int bindingpoint, bool ssbo, bool needsresize) override;

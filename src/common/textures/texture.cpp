@@ -552,6 +552,10 @@ IHardwareTexture* FTexture::GetHardwareTexture(int translation, int scaleflags)
 	{
 		hwtex = screen->CreateHardwareTexture(indexed? 1 : 4);
 		SystemTextures.AddHardwareTexture(translation, scaleflags, hwtex);
+		// first time this translation/scaleflags combo has been needed - if there's a
+		// dual-GPU peer, eagerly duplicate the same upload onto it right now rather than
+		// waiting for something to separately notice the peer needs it too.
+		screen->DuplicateTextureToPeer(this, translation, scaleflags);
 	}
 	return hwtex;
 }

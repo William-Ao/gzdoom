@@ -25,17 +25,32 @@ public:
 		MAX_TEXTURES = 16
 	};
 
+	// one slot per device: 0 is always the primary, 1 is the dual-GPU bridge's peer (see
+	// VulkanRenderDevice::GetPeerDevice()). every existing caller passes no device index and
+	// gets slot 0, same as before this existed - only the peer-duplication hook in
+	// FTexture::GetHardwareTexture() ever touches slot 1.
+	enum { MAX_DEVICES = 2 };
+
 private:
 	struct TranslatedTexture
 	{
-		IHardwareTexture *hwTexture = nullptr;
+		IHardwareTexture *hwTexture[MAX_DEVICES] = {};
 		int translation = 0;
 		bool precacheMarker;	// This is used to check whether a texture has been hit by the precacher, so that the cleanup code can delete the unneeded ones.
 
 		void Delete()
 		{
-			delete hwTexture;
-			hwTexture = nullptr;
+			for (auto &tex : hwTexture)
+			{
+				delete tex;
+				tex = nullptr;
+			}
+		}
+
+		void Delete(int device)
+		{
+			delete hwTexture[device];
+			hwTexture[device] = nullptr;
 		}
 
 		~TranslatedTexture()
@@ -109,17 +124,17 @@ public:
 		hwTex_Translated.Clear();
 	}
 
-	IHardwareTexture * GetHardwareTexture(int translation, int scaleflags)
+	IHardwareTexture * GetHardwareTexture(int translation, int scaleflags, int device = 0)
 	{
 		auto tt = GetTexID(translation, scaleflags);
-		return tt->hwTexture;
+		return tt->hwTexture[device];
 	}
 
-	void AddHardwareTexture(int translation, int scaleflags, IHardwareTexture *tex)
+	void AddHardwareTexture(int translation, int scaleflags, IHardwareTexture *tex, int device = 0)
 	{
 		auto tt = GetTexID(translation, scaleflags);
-		tt->Delete();
-		tt->hwTexture =tex;
+		tt->Delete(device);
+		tt->hwTexture[device] = tex;
 	}
 
 	//===========================================================================
@@ -166,8 +181,8 @@ public:
 	template<class T>
 	void Iterate(T callback)
 	{
-		for (auto & t : hwDefTex) if (t.hwTexture) callback(t.hwTexture);
-		for (auto & t : hwTex_Translated) if (t.hwTexture) callback(t.hwTexture);
+		for (auto & t : hwDefTex) for (auto tex : t.hwTexture) if (tex) callback(tex);
+		for (auto & t : hwTex_Translated) for (auto tex : t.hwTexture) if (tex) callback(tex);
 	}
 
 
