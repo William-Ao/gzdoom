@@ -67,6 +67,11 @@ static VRMode vrmi_righteye = { 1, 1.f, 1.f, 1.f,{ { .5f, 1.f },{ 0.f, 0.f } } }
 static VRMode vrmi_topbottom = { 2, 1.f, .5f, 1.f,{ { -.5f, 1.f },{ .5f, 1.f } } };
 static VRMode vrmi_checker = { 2, isqrt2, isqrt2, 1.f,{ { -.5f, 1.f },{ .5f, 1.f } } };
 
+// Not const, unlike the modes above - the OpenXR bridge overwrites mEyes[].mOverride* on this
+// one every frame with real tracked pose/fov data. Shift factors here are just the fallback
+// used before the first real frame arrives, same shape as vrmi_stereo.
+VRMode vrmi_openxr = { 2, 1.f, 1.f, 1.f,{ { -.5f, 1.f },{ .5f, 1.f } } };
+
 static float DEG2RAD(float deg)
 {
 	return deg * float(M_PI / 180.0);
@@ -113,6 +118,9 @@ const VRMode *VRMode::GetVRMode(bool toscreen)
 
 	case VR_CHECKERINTERLEAVED:
 		return &vrmi_checker;
+
+	case VR_OPENXR:
+		return &vrmi_openxr;
 	}
 }
 
@@ -166,6 +174,22 @@ VSMatrix VREyeInfo::GetProjection(float fov, float aspectRatio, float fovRatio, 
 		fmat.ortho((float)left, (float)right, (float)bottom, (float)top, (float)zNear, (float)zFar);
 		return fmat;
 	}
+	else if (mHasPoseOverride)
+	{
+		// Real per-eye fov straight from the runtime (xrLocateViews) - asymmetric, so this
+		// can't go through the symmetric fovy path below. Angles follow OpenXR's XrFovf
+		// convention (radians from the eye's forward axis; left/down are typically negative).
+		double zNear = screen->GetZNear();
+		double zFar = screen->GetZFar();
+		double left = tan(mOverrideFovLeft) * zNear;
+		double right = tan(mOverrideFovRight) * zNear;
+		double up = tan(mOverrideFovUp) * zNear;
+		double down = tan(mOverrideFovDown) * zNear;
+
+		VSMatrix fmat(1);
+		fmat.frustum((float)left, (float)right, (float)down, (float)up, (float)zNear, (float)zFar);
+		return fmat;
+	}
 	else if (mShiftFactor == 0)
 	{
 		float fovy = (float)(2 * RAD2DEG(atan(tan(DEG2RAD(fov) / 2) / fovRatio)));
@@ -200,7 +224,13 @@ VSMatrix VREyeInfo::GetProjection(float fov, float aspectRatio, float fovRatio, 
 /* virtual */
 DVector3 VREyeInfo::GetViewShift(float yaw) const
 {
-	if (mShiftFactor == 0)
+	if (mHasPoseOverride)
+	{
+		// already computed in world space by the bridge using the real tracked orientation,
+		// not just yaw - the fixed formula below only has yaw to work with, we have the full pose.
+		return mOverrideShift;
+	}
+	else if (mShiftFactor == 0)
 	{
 		// pass-through for Mono view
 		return { 0,0,0 };

@@ -19,13 +19,23 @@ enum
 	VR_TOPBOTTOM = 11,
 	VR_ROWINTERLEAVED = 12,
 	VR_COLUMNINTERLEAVED = 13,
-	VR_CHECKERINTERLEAVED = 14
+	VR_CHECKERINTERLEAVED = 14,
+	VR_OPENXR = 15
 };
 
 struct VREyeInfo
 {
 	float mShiftFactor;
 	float mScaleFactor;
+
+	// Set per-frame by the OpenXR bridge (integration/gzdoom-vulkan-bridge) when vr_mode is
+	// VR_OPENXR. GetProjection/GetViewShift use this real tracked data instead of the
+	// mShiftFactor-based IPD formula when it's present - the formula has no way to express
+	// an actual 6DOF eye pose or the asymmetric per-eye fov OpenXR reports for canted lenses.
+	bool mHasPoseOverride = false;
+	DVector3 mOverrideShift;								// eye offset from head origin, doom units
+	float mOverrideFovLeft, mOverrideFovRight;				// radians, from vertical center line
+	float mOverrideFovUp, mOverrideFovDown;				// radians, from horizontal center line
 
 	VSMatrix GetProjection(float fov, float aspectRatio, float fovRatio, bool iso_ortho) const;
 	DVector3 GetViewShift(float yaw) const;
