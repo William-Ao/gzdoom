@@ -35,7 +35,10 @@ public:
 	void ImageTransitionScene(bool undefinedSrcLayout);
 
 	void BlitSceneToPostprocess();
-	void BlitCurrentToImage(VkTextureImage *image, VkImageLayout finallayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	// srcRect crops which part of the current pipeline image gets blitted - null means the
+	// whole thing (existing behavior). used by the openxr bridge to pull just one eye's half
+	// of the shared render target into that eye's swapchain image.
+	void BlitCurrentToImage(VkTextureImage *image, VkImageLayout finallayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, const VkRect2D *srcRect = nullptr);
 	void DrawPresentTexture(const IntRect &box, bool applyGamma, bool screenshot);
 
 	int GetCurrentPipelineImage() const { return mCurrentPipelineImage; }

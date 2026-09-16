@@ -146,7 +146,7 @@ void VkPostprocess::ImageTransitionScene(bool undefinedSrcLayout)
 		.Execute(fb->GetCommands()->GetDrawCommands());
 }
 
-void VkPostprocess::BlitCurrentToImage(VkTextureImage *dstimage, VkImageLayout finallayout)
+void VkPostprocess::BlitCurrentToImage(VkTextureImage *dstimage, VkImageLayout finallayout, const VkRect2D *srcRect)
 {
 	fb->GetRenderState()->EndRenderPass();
 
@@ -159,8 +159,16 @@ void VkPostprocess::BlitCurrentToImage(VkTextureImage *dstimage, VkImageLayout f
 		.Execute(cmdbuffer);
 
 	VkImageBlit blit = {};
-	blit.srcOffsets[0] = { 0, 0, 0 };
-	blit.srcOffsets[1] = { srcimage->Image->width, srcimage->Image->height, 1 };
+	if (srcRect)
+	{
+		blit.srcOffsets[0] = { srcRect->offset.x, srcRect->offset.y, 0 };
+		blit.srcOffsets[1] = { srcRect->offset.x + (int32_t)srcRect->extent.width, srcRect->offset.y + (int32_t)srcRect->extent.height, 1 };
+	}
+	else
+	{
+		blit.srcOffsets[0] = { 0, 0, 0 };
+		blit.srcOffsets[1] = { srcimage->Image->width, srcimage->Image->height, 1 };
+	}
 	blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	blit.srcSubresource.mipLevel = 0;
 	blit.srcSubresource.baseArrayLayer = 0;
