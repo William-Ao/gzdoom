@@ -48,7 +48,7 @@ public:
 	{
 		VkBufferDeviceAddressInfo info = { VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO };
 		info.buffer = buffer;
-		return vkGetBufferDeviceAddress(device->device, &info);
+		return device->vk.vkGetBufferDeviceAddress(device->device, &info);
 	}
 
 #ifdef _DEBUG
@@ -260,7 +260,7 @@ public:
 	{
 		VkAccelerationStructureDeviceAddressInfoKHR addressInfo = { VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR };
 		addressInfo.accelerationStructure = accelstruct;
-		return vkGetAccelerationStructureDeviceAddressKHR(device->device, &addressInfo);
+		return device->vk.vkGetAccelerationStructureDeviceAddressKHR(device->device, &addressInfo);
 	}
 
 	void SetDebugName(const char* name) { device->SetObjectName(name, (uint64_t)accelstruct, VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_KHR); }
@@ -468,13 +468,13 @@ inline VulkanSemaphore::VulkanSemaphore(VulkanDevice *device) : device(device)
 {
 	VkSemaphoreCreateInfo semaphoreInfo = {};
 	semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-	VkResult result = vkCreateSemaphore(device->device, &semaphoreInfo, nullptr, &semaphore);
+	VkResult result = device->vk.vkCreateSemaphore(device->device, &semaphoreInfo, nullptr, &semaphore);
 	CheckVulkanError(result, "Could not create semaphore");
 }
 
 inline VulkanSemaphore::~VulkanSemaphore()
 {
-	vkDestroySemaphore(device->device, semaphore, nullptr);
+	device->vk.vkDestroySemaphore(device->device, semaphore, nullptr);
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -483,13 +483,13 @@ inline VulkanFence::VulkanFence(VulkanDevice *device) : device(device)
 {
 	VkFenceCreateInfo fenceInfo = {};
 	fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-	VkResult result = vkCreateFence(device->device, &fenceInfo, nullptr, &fence);
+	VkResult result = device->vk.vkCreateFence(device->device, &fenceInfo, nullptr, &fence);
 	CheckVulkanError(result, "Could not create fence!");
 }
 
 inline VulkanFence::~VulkanFence()
 {
-	vkDestroyFence(device->device, fence, nullptr);
+	device->vk.vkDestroyFence(device->device, fence, nullptr);
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -524,13 +524,13 @@ inline VulkanCommandPool::VulkanCommandPool(VulkanDevice *device, int queueFamil
 	poolInfo.queueFamilyIndex = queueFamilyIndex;
 	poolInfo.flags = 0;
 
-	VkResult result = vkCreateCommandPool(device->device, &poolInfo, nullptr, &pool);
+	VkResult result = device->vk.vkCreateCommandPool(device->device, &poolInfo, nullptr, &pool);
 	CheckVulkanError(result, "Could not create command pool");
 }
 
 inline VulkanCommandPool::~VulkanCommandPool()
 {
-	vkDestroyCommandPool(device->device, pool, nullptr);
+	device->vk.vkDestroyCommandPool(device->device, pool, nullptr);
 }
 
 inline std::unique_ptr<VulkanCommandBuffer> VulkanCommandPool::createBuffer()
@@ -626,13 +626,13 @@ inline VulkanCommandBuffer::VulkanCommandBuffer(VulkanCommandPool *pool) : pool(
 	allocInfo.commandPool = pool->pool;
 	allocInfo.commandBufferCount = 1;
 
-	VkResult result = vkAllocateCommandBuffers(pool->device->device, &allocInfo, &buffer);
+	VkResult result = pool->device->vk.vkAllocateCommandBuffers(pool->device->device, &allocInfo, &buffer);
 	CheckVulkanError(result, "Could not create command buffer");
 }
 
 inline VulkanCommandBuffer::~VulkanCommandBuffer()
 {
-	vkFreeCommandBuffers(pool->device->device, pool->pool, 1, &buffer);
+	pool->device->vk.vkFreeCommandBuffers(pool->device->device, pool->pool, 1, &buffer);
 }
 
 inline void VulkanCommandBuffer::begin()
@@ -642,13 +642,13 @@ inline void VulkanCommandBuffer::begin()
 	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 	beginInfo.pInheritanceInfo = nullptr;
 
-	VkResult result = vkBeginCommandBuffer(buffer, &beginInfo);
+	VkResult result = pool->device->vk.vkBeginCommandBuffer(buffer, &beginInfo);
 	CheckVulkanError(result, "Could not begin recording command buffer");
 }
 
 inline void VulkanCommandBuffer::end()
 {
-	VkResult result = vkEndCommandBuffer(buffer);
+	VkResult result = pool->device->vk.vkEndCommandBuffer(buffer);
 	CheckVulkanError(result, "Could not end command buffer recording");
 }
 
@@ -689,7 +689,7 @@ inline void VulkanCommandBuffer::debugFullPipelineBarrier()
 		VK_ACCESS_HOST_READ_BIT |
 		VK_ACCESS_HOST_WRITE_BIT;
 
-	vkCmdPipelineBarrier(buffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 1, &barrier, 0, nullptr, 0, nullptr);
+	pool->device->vk.vkCmdPipelineBarrier(buffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 1, &barrier, 0, nullptr, 0, nullptr);
 }
 
 inline void VulkanCommandBuffer::bindPipeline(VkPipelineBindPoint pipelineBindPoint, VulkanPipeline *pipeline)
@@ -699,52 +699,52 @@ inline void VulkanCommandBuffer::bindPipeline(VkPipelineBindPoint pipelineBindPo
 
 inline void VulkanCommandBuffer::bindPipeline(VkPipelineBindPoint pipelineBindPoint, VkPipeline pipeline)
 {
-	vkCmdBindPipeline(buffer, pipelineBindPoint, pipeline);
+	pool->device->vk.vkCmdBindPipeline(buffer, pipelineBindPoint, pipeline);
 }
 
 inline void VulkanCommandBuffer::setViewport(uint32_t firstViewport, uint32_t viewportCount, const VkViewport* pViewports)
 {
-	vkCmdSetViewport(buffer, firstViewport, viewportCount, pViewports);
+	pool->device->vk.vkCmdSetViewport(buffer, firstViewport, viewportCount, pViewports);
 }
 
 inline void VulkanCommandBuffer::setScissor(uint32_t firstScissor, uint32_t scissorCount, const VkRect2D* pScissors)
 {
-	vkCmdSetScissor(buffer, firstScissor, scissorCount, pScissors);
+	pool->device->vk.vkCmdSetScissor(buffer, firstScissor, scissorCount, pScissors);
 }
 
 inline void VulkanCommandBuffer::setLineWidth(float lineWidth)
 {
-	vkCmdSetLineWidth(buffer, lineWidth);
+	pool->device->vk.vkCmdSetLineWidth(buffer, lineWidth);
 }
 
 inline void VulkanCommandBuffer::setDepthBias(float depthBiasConstantFactor, float depthBiasClamp, float depthBiasSlopeFactor)
 {
-	vkCmdSetDepthBias(buffer, depthBiasConstantFactor, depthBiasClamp, depthBiasSlopeFactor);
+	pool->device->vk.vkCmdSetDepthBias(buffer, depthBiasConstantFactor, depthBiasClamp, depthBiasSlopeFactor);
 }
 
 inline void VulkanCommandBuffer::setBlendConstants(const float blendConstants[4])
 {
-	vkCmdSetBlendConstants(buffer, blendConstants);
+	pool->device->vk.vkCmdSetBlendConstants(buffer, blendConstants);
 }
 
 inline void VulkanCommandBuffer::setDepthBounds(float minDepthBounds, float maxDepthBounds)
 {
-	vkCmdSetDepthBounds(buffer, minDepthBounds, maxDepthBounds);
+	pool->device->vk.vkCmdSetDepthBounds(buffer, minDepthBounds, maxDepthBounds);
 }
 
 inline void VulkanCommandBuffer::setStencilCompareMask(VkStencilFaceFlags faceMask, uint32_t compareMask)
 {
-	vkCmdSetStencilCompareMask(buffer, faceMask, compareMask);
+	pool->device->vk.vkCmdSetStencilCompareMask(buffer, faceMask, compareMask);
 }
 
 inline void VulkanCommandBuffer::setStencilWriteMask(VkStencilFaceFlags faceMask, uint32_t writeMask)
 {
-	vkCmdSetStencilWriteMask(buffer, faceMask, writeMask);
+	pool->device->vk.vkCmdSetStencilWriteMask(buffer, faceMask, writeMask);
 }
 
 inline void VulkanCommandBuffer::setStencilReference(VkStencilFaceFlags faceMask, uint32_t reference)
 {
-	vkCmdSetStencilReference(buffer, faceMask, reference);
+	pool->device->vk.vkCmdSetStencilReference(buffer, faceMask, reference);
 }
 
 inline void VulkanCommandBuffer::bindDescriptorSet(VkPipelineBindPoint pipelineBindPoint, VulkanPipelineLayout *layout, uint32_t setIndex, VulkanDescriptorSet *descriptorSet, uint32_t dynamicOffsetCount, const uint32_t* pDynamicOffsets)
@@ -754,47 +754,47 @@ inline void VulkanCommandBuffer::bindDescriptorSet(VkPipelineBindPoint pipelineB
 
 inline void VulkanCommandBuffer::bindDescriptorSets(VkPipelineBindPoint pipelineBindPoint, VkPipelineLayout layout, uint32_t firstSet, uint32_t descriptorSetCount, const VkDescriptorSet* pDescriptorSets, uint32_t dynamicOffsetCount, const uint32_t* pDynamicOffsets)
 {
-	vkCmdBindDescriptorSets(buffer, pipelineBindPoint, layout, firstSet, descriptorSetCount, pDescriptorSets, dynamicOffsetCount, pDynamicOffsets);
+	pool->device->vk.vkCmdBindDescriptorSets(buffer, pipelineBindPoint, layout, firstSet, descriptorSetCount, pDescriptorSets, dynamicOffsetCount, pDynamicOffsets);
 }
 
 inline void VulkanCommandBuffer::bindIndexBuffer(VkBuffer buffer, VkDeviceSize offset, VkIndexType indexType)
 {
-	vkCmdBindIndexBuffer(this->buffer, buffer, offset, indexType);
+	pool->device->vk.vkCmdBindIndexBuffer(this->buffer, buffer, offset, indexType);
 }
 
 inline void VulkanCommandBuffer::bindVertexBuffers(uint32_t firstBinding, uint32_t bindingCount, const VkBuffer* pBuffers, const VkDeviceSize* pOffsets)
 {
-	vkCmdBindVertexBuffers(buffer, firstBinding, bindingCount, pBuffers, pOffsets);
+	pool->device->vk.vkCmdBindVertexBuffers(buffer, firstBinding, bindingCount, pBuffers, pOffsets);
 }
 
 inline void VulkanCommandBuffer::draw(uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance)
 {
-	vkCmdDraw(buffer, vertexCount, instanceCount, firstVertex, firstInstance);
+	pool->device->vk.vkCmdDraw(buffer, vertexCount, instanceCount, firstVertex, firstInstance);
 }
 
 inline void VulkanCommandBuffer::drawIndexed(uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance)
 {
-	vkCmdDrawIndexed(buffer, indexCount, instanceCount, firstIndex, vertexOffset, firstInstance);
+	pool->device->vk.vkCmdDrawIndexed(buffer, indexCount, instanceCount, firstIndex, vertexOffset, firstInstance);
 }
 
 inline void VulkanCommandBuffer::drawIndirect(VkBuffer buffer, VkDeviceSize offset, uint32_t drawCount, uint32_t stride)
 {
-	vkCmdDrawIndirect(this->buffer, buffer, offset, drawCount, stride);
+	pool->device->vk.vkCmdDrawIndirect(this->buffer, buffer, offset, drawCount, stride);
 }
 
 inline void VulkanCommandBuffer::drawIndexedIndirect(VkBuffer buffer, VkDeviceSize offset, uint32_t drawCount, uint32_t stride)
 {
-	vkCmdDrawIndexedIndirect(this->buffer, buffer, offset, drawCount, stride);
+	pool->device->vk.vkCmdDrawIndexedIndirect(this->buffer, buffer, offset, drawCount, stride);
 }
 
 inline void VulkanCommandBuffer::dispatch(uint32_t x, uint32_t y, uint32_t z)
 {
-	vkCmdDispatch(buffer, x, y, z);
+	pool->device->vk.vkCmdDispatch(buffer, x, y, z);
 }
 
 inline void VulkanCommandBuffer::dispatchIndirect(VkBuffer buffer, VkDeviceSize offset)
 {
-	vkCmdDispatchIndirect(this->buffer, buffer, offset);
+	pool->device->vk.vkCmdDispatchIndirect(this->buffer, buffer, offset);
 }
 
 inline void VulkanCommandBuffer::copyBuffer(VulkanBuffer *srcBuffer, VulkanBuffer *dstBuffer, VkDeviceSize srcOffset, VkDeviceSize dstOffset, VkDeviceSize size)
@@ -808,77 +808,77 @@ inline void VulkanCommandBuffer::copyBuffer(VulkanBuffer *srcBuffer, VulkanBuffe
 
 inline void VulkanCommandBuffer::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, uint32_t regionCount, const VkBufferCopy* pRegions)
 {
-	vkCmdCopyBuffer(buffer, srcBuffer, dstBuffer, regionCount, pRegions);
+	pool->device->vk.vkCmdCopyBuffer(buffer, srcBuffer, dstBuffer, regionCount, pRegions);
 }
 
 inline void VulkanCommandBuffer::copyImage(VkImage srcImage, VkImageLayout srcImageLayout, VkImage dstImage, VkImageLayout dstImageLayout, uint32_t regionCount, const VkImageCopy* pRegions)
 {
-	vkCmdCopyImage(buffer, srcImage, srcImageLayout, dstImage, dstImageLayout, regionCount, pRegions);
+	pool->device->vk.vkCmdCopyImage(buffer, srcImage, srcImageLayout, dstImage, dstImageLayout, regionCount, pRegions);
 }
 
 inline void VulkanCommandBuffer::blitImage(VkImage srcImage, VkImageLayout srcImageLayout, VkImage dstImage, VkImageLayout dstImageLayout, uint32_t regionCount, const VkImageBlit* pRegions, VkFilter filter)
 {
-	vkCmdBlitImage(buffer, srcImage, srcImageLayout, dstImage, dstImageLayout, regionCount, pRegions, filter);
+	pool->device->vk.vkCmdBlitImage(buffer, srcImage, srcImageLayout, dstImage, dstImageLayout, regionCount, pRegions, filter);
 }
 
 inline void VulkanCommandBuffer::copyBufferToImage(VkBuffer srcBuffer, VkImage dstImage, VkImageLayout dstImageLayout, uint32_t regionCount, const VkBufferImageCopy* pRegions)
 {
-	vkCmdCopyBufferToImage(buffer, srcBuffer, dstImage, dstImageLayout, regionCount, pRegions);
+	pool->device->vk.vkCmdCopyBufferToImage(buffer, srcBuffer, dstImage, dstImageLayout, regionCount, pRegions);
 }
 
 inline void VulkanCommandBuffer::copyImageToBuffer(VkImage srcImage, VkImageLayout srcImageLayout, VkBuffer dstBuffer, uint32_t regionCount, const VkBufferImageCopy* pRegions)
 {
-	vkCmdCopyImageToBuffer(buffer, srcImage, srcImageLayout, dstBuffer, regionCount, pRegions);
+	pool->device->vk.vkCmdCopyImageToBuffer(buffer, srcImage, srcImageLayout, dstBuffer, regionCount, pRegions);
 }
 
 inline void VulkanCommandBuffer::updateBuffer(VkBuffer dstBuffer, VkDeviceSize dstOffset, VkDeviceSize dataSize, const void* pData)
 {
-	vkCmdUpdateBuffer(buffer, dstBuffer, dstOffset, dataSize, pData);
+	pool->device->vk.vkCmdUpdateBuffer(buffer, dstBuffer, dstOffset, dataSize, pData);
 }
 
 inline void VulkanCommandBuffer::fillBuffer(VkBuffer dstBuffer, VkDeviceSize dstOffset, VkDeviceSize size, uint32_t data)
 {
-	vkCmdFillBuffer(buffer, dstBuffer, dstOffset, size, data);
+	pool->device->vk.vkCmdFillBuffer(buffer, dstBuffer, dstOffset, size, data);
 }
 
 inline void VulkanCommandBuffer::clearColorImage(VkImage image, VkImageLayout imageLayout, const VkClearColorValue* pColor, uint32_t rangeCount, const VkImageSubresourceRange* pRanges)
 {
-	vkCmdClearColorImage(buffer, image, imageLayout, pColor, rangeCount, pRanges);
+	pool->device->vk.vkCmdClearColorImage(buffer, image, imageLayout, pColor, rangeCount, pRanges);
 }
 
 inline void VulkanCommandBuffer::clearDepthStencilImage(VkImage image, VkImageLayout imageLayout, const VkClearDepthStencilValue* pDepthStencil, uint32_t rangeCount, const VkImageSubresourceRange* pRanges)
 {
-	vkCmdClearDepthStencilImage(buffer, image, imageLayout, pDepthStencil, rangeCount, pRanges);
+	pool->device->vk.vkCmdClearDepthStencilImage(buffer, image, imageLayout, pDepthStencil, rangeCount, pRanges);
 }
 
 inline void VulkanCommandBuffer::clearAttachments(uint32_t attachmentCount, const VkClearAttachment* pAttachments, uint32_t rectCount, const VkClearRect* pRects)
 {
-	vkCmdClearAttachments(buffer, attachmentCount, pAttachments, rectCount, pRects);
+	pool->device->vk.vkCmdClearAttachments(buffer, attachmentCount, pAttachments, rectCount, pRects);
 }
 
 inline void VulkanCommandBuffer::resolveImage(VkImage srcImage, VkImageLayout srcImageLayout, VkImage dstImage, VkImageLayout dstImageLayout, uint32_t regionCount, const VkImageResolve* pRegions)
 {
-	vkCmdResolveImage(buffer, srcImage, srcImageLayout, dstImage, dstImageLayout, regionCount, pRegions);
+	pool->device->vk.vkCmdResolveImage(buffer, srcImage, srcImageLayout, dstImage, dstImageLayout, regionCount, pRegions);
 }
 
 inline void VulkanCommandBuffer::setEvent(VkEvent event, VkPipelineStageFlags stageMask)
 {
-	vkCmdSetEvent(buffer, event, stageMask);
+	pool->device->vk.vkCmdSetEvent(buffer, event, stageMask);
 }
 
 inline void VulkanCommandBuffer::resetEvent(VkEvent event, VkPipelineStageFlags stageMask)
 {
-	vkCmdResetEvent(buffer, event, stageMask);
+	pool->device->vk.vkCmdResetEvent(buffer, event, stageMask);
 }
 
 inline void VulkanCommandBuffer::waitEvents(uint32_t eventCount, const VkEvent* pEvents, VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask, uint32_t memoryBarrierCount, const VkMemoryBarrier* pMemoryBarriers, uint32_t bufferMemoryBarrierCount, const VkBufferMemoryBarrier* pBufferMemoryBarriers, uint32_t imageMemoryBarrierCount, const VkImageMemoryBarrier* pImageMemoryBarriers)
 {
-	vkCmdWaitEvents(buffer, eventCount, pEvents, srcStageMask, dstStageMask, memoryBarrierCount, pMemoryBarriers, bufferMemoryBarrierCount, pBufferMemoryBarriers, imageMemoryBarrierCount, pImageMemoryBarriers);
+	pool->device->vk.vkCmdWaitEvents(buffer, eventCount, pEvents, srcStageMask, dstStageMask, memoryBarrierCount, pMemoryBarriers, bufferMemoryBarrierCount, pBufferMemoryBarriers, imageMemoryBarrierCount, pImageMemoryBarriers);
 }
 
 inline void VulkanCommandBuffer::pipelineBarrier(VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask, VkDependencyFlags dependencyFlags, uint32_t memoryBarrierCount, const VkMemoryBarrier* pMemoryBarriers, uint32_t bufferMemoryBarrierCount, const VkBufferMemoryBarrier* pBufferMemoryBarriers, uint32_t imageMemoryBarrierCount, const VkImageMemoryBarrier* pImageMemoryBarriers)
 {
-	vkCmdPipelineBarrier(buffer, srcStageMask, dstStageMask, dependencyFlags, memoryBarrierCount, pMemoryBarriers, bufferMemoryBarrierCount, pBufferMemoryBarriers, imageMemoryBarrierCount, pImageMemoryBarriers);
+	pool->device->vk.vkCmdPipelineBarrier(buffer, srcStageMask, dstStageMask, dependencyFlags, memoryBarrierCount, pMemoryBarriers, bufferMemoryBarrierCount, pBufferMemoryBarriers, imageMemoryBarrierCount, pImageMemoryBarriers);
 }
 
 inline void VulkanCommandBuffer::beginQuery(VulkanQueryPool *queryPool, uint32_t query, VkQueryControlFlags flags)
@@ -888,7 +888,7 @@ inline void VulkanCommandBuffer::beginQuery(VulkanQueryPool *queryPool, uint32_t
 
 inline void VulkanCommandBuffer::beginQuery(VkQueryPool queryPool, uint32_t query, VkQueryControlFlags flags)
 {
-	vkCmdBeginQuery(buffer, queryPool, query, flags);
+	pool->device->vk.vkCmdBeginQuery(buffer, queryPool, query, flags);
 }
 
 inline void VulkanCommandBuffer::endQuery(VulkanQueryPool *queryPool, uint32_t query)
@@ -898,7 +898,7 @@ inline void VulkanCommandBuffer::endQuery(VulkanQueryPool *queryPool, uint32_t q
 
 inline void VulkanCommandBuffer::endQuery(VkQueryPool queryPool, uint32_t query)
 {
-	vkCmdEndQuery(buffer, queryPool, query);
+	pool->device->vk.vkCmdEndQuery(buffer, queryPool, query);
 }
 
 inline void VulkanCommandBuffer::resetQueryPool(VulkanQueryPool *queryPool, uint32_t firstQuery, uint32_t queryCount)
@@ -908,7 +908,7 @@ inline void VulkanCommandBuffer::resetQueryPool(VulkanQueryPool *queryPool, uint
 
 inline void VulkanCommandBuffer::resetQueryPool(VkQueryPool queryPool, uint32_t firstQuery, uint32_t queryCount)
 {
-	vkCmdResetQueryPool(buffer, queryPool, firstQuery, queryCount);
+	pool->device->vk.vkCmdResetQueryPool(buffer, queryPool, firstQuery, queryCount);
 }
 
 inline void VulkanCommandBuffer::writeTimestamp(VkPipelineStageFlagBits pipelineStage, VulkanQueryPool *queryPool, uint32_t query)
@@ -918,7 +918,7 @@ inline void VulkanCommandBuffer::writeTimestamp(VkPipelineStageFlagBits pipeline
 
 inline void VulkanCommandBuffer::writeTimestamp(VkPipelineStageFlagBits pipelineStage, VkQueryPool queryPool, uint32_t query)
 {
-	vkCmdWriteTimestamp(buffer, pipelineStage, queryPool, query);
+	pool->device->vk.vkCmdWriteTimestamp(buffer, pipelineStage, queryPool, query);
 }
 
 inline void VulkanCommandBuffer::copyQueryPoolResults(VulkanQueryPool *queryPool, uint32_t firstQuery, uint32_t queryCount, VulkanBuffer *dstBuffer, VkDeviceSize dstOffset, VkDeviceSize stride, VkQueryResultFlags flags)
@@ -928,7 +928,7 @@ inline void VulkanCommandBuffer::copyQueryPoolResults(VulkanQueryPool *queryPool
 
 inline void VulkanCommandBuffer::copyQueryPoolResults(VkQueryPool queryPool, uint32_t firstQuery, uint32_t queryCount, VkBuffer dstBuffer, VkDeviceSize dstOffset, VkDeviceSize stride, VkQueryResultFlags flags)
 {
-	vkCmdCopyQueryPoolResults(buffer, queryPool, firstQuery, queryCount, dstBuffer, dstOffset, stride, flags);
+	pool->device->vk.vkCmdCopyQueryPoolResults(buffer, queryPool, firstQuery, queryCount, dstBuffer, dstOffset, stride, flags);
 }
 
 inline void VulkanCommandBuffer::pushConstants(VulkanPipelineLayout *layout, VkShaderStageFlags stageFlags, uint32_t offset, uint32_t size, const void* pValues)
@@ -938,7 +938,7 @@ inline void VulkanCommandBuffer::pushConstants(VulkanPipelineLayout *layout, VkS
 
 inline void VulkanCommandBuffer::pushConstants(VkPipelineLayout layout, VkShaderStageFlags stageFlags, uint32_t offset, uint32_t size, const void* pValues)
 {
-	vkCmdPushConstants(buffer, layout, stageFlags, offset, size, pValues);
+	pool->device->vk.vkCmdPushConstants(buffer, layout, stageFlags, offset, size, pValues);
 }
 
 inline void VulkanCommandBuffer::beginRenderPass(const RenderPassBegin &renderPassBegin, VkSubpassContents contents)
@@ -948,37 +948,37 @@ inline void VulkanCommandBuffer::beginRenderPass(const RenderPassBegin &renderPa
 
 inline void VulkanCommandBuffer::beginRenderPass(const VkRenderPassBeginInfo* pRenderPassBegin, VkSubpassContents contents)
 {
-	vkCmdBeginRenderPass(buffer, pRenderPassBegin, contents);
+	pool->device->vk.vkCmdBeginRenderPass(buffer, pRenderPassBegin, contents);
 }
 
 inline void VulkanCommandBuffer::nextSubpass(VkSubpassContents contents)
 {
-	vkCmdNextSubpass(buffer, contents);
+	pool->device->vk.vkCmdNextSubpass(buffer, contents);
 }
 
 inline void VulkanCommandBuffer::endRenderPass()
 {
-	vkCmdEndRenderPass(buffer);
+	pool->device->vk.vkCmdEndRenderPass(buffer);
 }
 
 inline void VulkanCommandBuffer::executeCommands(uint32_t commandBufferCount, const VkCommandBuffer* pCommandBuffers)
 {
-	vkCmdExecuteCommands(buffer, commandBufferCount, pCommandBuffers);
+	pool->device->vk.vkCmdExecuteCommands(buffer, commandBufferCount, pCommandBuffers);
 }
 
 inline void VulkanCommandBuffer::buildAccelerationStructures(uint32_t infoCount, const VkAccelerationStructureBuildGeometryInfoKHR* pInfos, const VkAccelerationStructureBuildRangeInfoKHR* const* ppBuildRangeInfos)
 {
-	vkCmdBuildAccelerationStructuresKHR(buffer, infoCount, pInfos, ppBuildRangeInfos);
+	pool->device->vk.vkCmdBuildAccelerationStructuresKHR(buffer, infoCount, pInfos, ppBuildRangeInfos);
 }
 
 inline void VulkanCommandBuffer::traceRays(const VkStridedDeviceAddressRegionKHR* pRaygenShaderBindingTable, const VkStridedDeviceAddressRegionKHR* pMissShaderBindingTable, const VkStridedDeviceAddressRegionKHR* pHitShaderBindingTable, const VkStridedDeviceAddressRegionKHR* pCallableShaderBindingTable, uint32_t width, uint32_t height, uint32_t depth)
 {
-	vkCmdTraceRaysKHR(buffer, pRaygenShaderBindingTable, pMissShaderBindingTable, pHitShaderBindingTable, pCallableShaderBindingTable, width, height, depth);
+	pool->device->vk.vkCmdTraceRaysKHR(buffer, pRaygenShaderBindingTable, pMissShaderBindingTable, pHitShaderBindingTable, pCallableShaderBindingTable, width, height, depth);
 }
 
 inline void VulkanCommandBuffer::writeAccelerationStructuresProperties(uint32_t accelerationStructureCount, const VkAccelerationStructureKHR* pAccelerationStructures, VkQueryType queryType, VkQueryPool queryPool, uint32_t firstQuery)
 {
-	vkCmdWriteAccelerationStructuresPropertiesKHR(buffer, accelerationStructureCount, pAccelerationStructures, queryType, queryPool, firstQuery);
+	pool->device->vk.vkCmdWriteAccelerationStructuresPropertiesKHR(buffer, accelerationStructureCount, pAccelerationStructures, queryType, queryPool, firstQuery);
 }
 
 inline void VulkanCommandBuffer::SetDebugName(const char *name)
@@ -994,7 +994,7 @@ inline VulkanShader::VulkanShader(VulkanDevice *device, VkShaderModule module) :
 
 inline VulkanShader::~VulkanShader()
 {
-	vkDestroyShaderModule(device->device, module, nullptr);
+	device->vk.vkDestroyShaderModule(device->device, module, nullptr);
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -1005,7 +1005,7 @@ inline VulkanDescriptorSetLayout::VulkanDescriptorSetLayout(VulkanDevice *device
 
 inline VulkanDescriptorSetLayout::~VulkanDescriptorSetLayout()
 {
-	vkDestroyDescriptorSetLayout(device->device, layout, nullptr);
+	device->vk.vkDestroyDescriptorSetLayout(device->device, layout, nullptr);
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -1016,7 +1016,7 @@ inline VulkanDescriptorSet::VulkanDescriptorSet(VulkanDevice *device, VulkanDesc
 
 inline VulkanDescriptorSet::~VulkanDescriptorSet()
 {
-	vkFreeDescriptorSets(device->device, pool->pool, 1, &set);
+	device->vk.vkFreeDescriptorSets(device->device, pool->pool, 1, &set);
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -1027,7 +1027,7 @@ inline VulkanDescriptorPool::VulkanDescriptorPool(VulkanDevice *device, VkDescri
 
 inline VulkanDescriptorPool::~VulkanDescriptorPool()
 {
-	vkDestroyDescriptorPool(device->device, pool, nullptr);
+	device->vk.vkDestroyDescriptorPool(device->device, pool, nullptr);
 }
 
 inline std::unique_ptr<VulkanDescriptorSet> VulkanDescriptorPool::allocate(VulkanDescriptorSetLayout* layout, AllocType allocType)
@@ -1038,7 +1038,7 @@ inline std::unique_ptr<VulkanDescriptorSet> VulkanDescriptorPool::allocate(Vulka
 	allocInfo.pSetLayouts = &layout->layout;
 
 	VkDescriptorSet descriptorSet;
-	VkResult result = vkAllocateDescriptorSets(device->device, &allocInfo, &descriptorSet);
+	VkResult result = device->vk.vkAllocateDescriptorSets(device->device, &allocInfo, &descriptorSet);
 	if (allocType == AllocType::TryAllocate && result != VK_SUCCESS)
 		return nullptr;
 	else
@@ -1058,7 +1058,7 @@ inline std::unique_ptr<VulkanDescriptorSet> VulkanDescriptorPool::allocate(Vulka
 	countInfo.pDescriptorCounts = &bindlessCount;
 
 	VkDescriptorSet descriptorSet;
-	VkResult result = vkAllocateDescriptorSets(device->device, &allocInfo, &descriptorSet);
+	VkResult result = device->vk.vkAllocateDescriptorSets(device->device, &allocInfo, &descriptorSet);
 	if (allocType == AllocType::TryAllocate && result != VK_SUCCESS)
 		return nullptr;
 	else
@@ -1094,12 +1094,12 @@ inline VulkanQueryPool::VulkanQueryPool(VulkanDevice *device, VkQueryPool pool) 
 
 inline VulkanQueryPool::~VulkanQueryPool()
 {
-	vkDestroyQueryPool(device->device, pool, nullptr);
+	device->vk.vkDestroyQueryPool(device->device, pool, nullptr);
 }
 
 inline bool VulkanQueryPool::getResults(uint32_t firstQuery, uint32_t queryCount, size_t dataSize, void *data, VkDeviceSize stride, VkQueryResultFlags flags)
 {
-	VkResult result = vkGetQueryPoolResults(device->device, pool, firstQuery, queryCount, dataSize, data, stride, flags);
+	VkResult result = device->vk.vkGetQueryPoolResults(device->device, pool, firstQuery, queryCount, dataSize, data, stride, flags);
 	CheckVulkanError(result, "vkGetQueryPoolResults failed");
 	return result == VK_SUCCESS;
 }
@@ -1112,7 +1112,7 @@ inline VulkanFramebuffer::VulkanFramebuffer(VulkanDevice *device, VkFramebuffer 
 
 inline VulkanFramebuffer::~VulkanFramebuffer()
 {
-	vkDestroyFramebuffer(device->device, framebuffer, nullptr);
+	device->vk.vkDestroyFramebuffer(device->device, framebuffer, nullptr);
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -1147,7 +1147,7 @@ inline VulkanImageView::VulkanImageView(VulkanDevice *device, VkImageView view) 
 
 inline VulkanImageView::~VulkanImageView()
 {
-	vkDestroyImageView(device->device, view, nullptr);
+	device->vk.vkDestroyImageView(device->device, view, nullptr);
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -1158,7 +1158,7 @@ inline VulkanSampler::VulkanSampler(VulkanDevice *device, VkSampler sampler) : s
 
 inline VulkanSampler::~VulkanSampler()
 {
-	vkDestroySampler(device->device, sampler, nullptr);
+	device->vk.vkDestroySampler(device->device, sampler, nullptr);
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -1170,7 +1170,7 @@ inline VulkanAccelerationStructure::VulkanAccelerationStructure(VulkanDevice* de
 
 inline VulkanAccelerationStructure::~VulkanAccelerationStructure()
 {
-	vkDestroyAccelerationStructureKHR(device->device, accelstruct, nullptr);
+	device->vk.vkDestroyAccelerationStructureKHR(device->device, accelstruct, nullptr);
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -1181,7 +1181,7 @@ inline VulkanPipeline::VulkanPipeline(VulkanDevice *device, VkPipeline pipeline)
 
 inline VulkanPipeline::~VulkanPipeline()
 {
-	vkDestroyPipeline(device->device, pipeline, nullptr);
+	device->vk.vkDestroyPipeline(device->device, pipeline, nullptr);
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -1192,7 +1192,7 @@ inline VulkanPipelineLayout::VulkanPipelineLayout(VulkanDevice *device, VkPipeli
 
 inline VulkanPipelineLayout::~VulkanPipelineLayout()
 {
-	vkDestroyPipelineLayout(device->device, layout, nullptr);
+	device->vk.vkDestroyPipelineLayout(device->device, layout, nullptr);
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -1203,18 +1203,18 @@ inline VulkanPipelineCache::VulkanPipelineCache(VulkanDevice* device, VkPipeline
 
 inline VulkanPipelineCache::~VulkanPipelineCache()
 {
-	vkDestroyPipelineCache(device->device, cache, nullptr);
+	device->vk.vkDestroyPipelineCache(device->device, cache, nullptr);
 }
 
 inline std::vector<uint8_t> VulkanPipelineCache::GetCacheData()
 {
 	size_t dataSize = 0;
-	VkResult result = vkGetPipelineCacheData(device->device, cache, &dataSize, nullptr);
+	VkResult result = device->vk.vkGetPipelineCacheData(device->device, cache, &dataSize, nullptr);
 	CheckVulkanError(result, "Could not get cache data size");
 
 	std::vector<uint8_t> buffer;
 	buffer.resize(dataSize);
-	result = vkGetPipelineCacheData(device->device, cache, &dataSize, buffer.data());
+	result = device->vk.vkGetPipelineCacheData(device->device, cache, &dataSize, buffer.data());
 	if (result == VK_INCOMPLETE)
 		VulkanError("Could not get cache data (incomplete)");
 	CheckVulkanError(result, "Could not get cache data");
@@ -1230,5 +1230,5 @@ inline VulkanRenderPass::VulkanRenderPass(VulkanDevice *device, VkRenderPass ren
 
 inline VulkanRenderPass::~VulkanRenderPass()
 {
-	vkDestroyRenderPass(device->device, renderPass, nullptr);
+	device->vk.vkDestroyRenderPass(device->device, renderPass, nullptr);
 }

@@ -13,7 +13,7 @@ VulkanSwapChain::~VulkanSwapChain()
 	views.clear();
 	images.clear();
 	if (swapchain)
-		vkDestroySwapchainKHR(device->device, swapchain, nullptr);
+		device->vk.vkDestroySwapchainKHR(device->device, swapchain, nullptr);
 }
 
 void VulkanSwapChain::Create(int width, int height, int imageCount, bool vsync, bool hdr, bool exclusivefullscreen)
@@ -32,13 +32,13 @@ void VulkanSwapChain::Create(int width, int height, int imageCount, bool vsync, 
 	if (swapchain)
 	{
 		uint32_t imageCount;
-		VkResult result = vkGetSwapchainImagesKHR(device->device, swapchain, &imageCount, nullptr);
+		VkResult result = device->vk.vkGetSwapchainImagesKHR(device->device, swapchain, &imageCount, nullptr);
 		if (result != VK_SUCCESS)
 			VulkanError("vkGetSwapchainImagesKHR failed");
 
 		std::vector<VkImage> swapchainImages;
 		swapchainImages.resize(imageCount);
-		result = vkGetSwapchainImagesKHR(device->device, swapchain, &imageCount, swapchainImages.data());
+		result = device->vk.vkGetSwapchainImagesKHR(device->device, swapchain, &imageCount, swapchainImages.data());
 		if (result != VK_SUCCESS)
 			VulkanError("vkGetSwapchainImagesKHR failed (2)");
 
@@ -141,7 +141,7 @@ bool VulkanSwapChain::CreateSwapchain(int width, int height, int imageCount, boo
 	if (actualExtent.width == 0 || actualExtent.height == 0)
 	{
 		if (swapchain)
-			vkDestroySwapchainKHR(device->device, swapchain, nullptr);
+			device->vk.vkDestroySwapchainKHR(device->device, swapchain, nullptr);
 		swapchain = VK_NULL_HANDLE;
 		lost = true;
 		return false;
@@ -195,10 +195,10 @@ bool VulkanSwapChain::CreateSwapchain(int width, int height, int imageCount, boo
 	}
 #endif
 
-	VkResult result = vkCreateSwapchainKHR(device->device, &swapChainCreateInfo, nullptr, &swapchain);
+	VkResult result = device->vk.vkCreateSwapchainKHR(device->device, &swapChainCreateInfo, nullptr, &swapchain);
 
 	if (swapChainCreateInfo.oldSwapchain)
-		vkDestroySwapchainKHR(device->device, swapChainCreateInfo.oldSwapchain, nullptr);
+		device->vk.vkDestroySwapchainKHR(device->device, swapChainCreateInfo.oldSwapchain, nullptr);
 
 	if (result != VK_SUCCESS)
 	{
@@ -210,7 +210,7 @@ bool VulkanSwapChain::CreateSwapchain(int width, int height, int imageCount, boo
 #ifdef WIN32
 	if (exclusivefullscreen)
 	{
-		result = vkAcquireFullScreenExclusiveModeEXT(device->device, swapchain);
+		result = device->vk.vkAcquireFullScreenExclusiveModeEXT(device->device, swapchain);
 		if (result != VK_SUCCESS)
 		{
 			lost = true;
@@ -227,7 +227,7 @@ int VulkanSwapChain::AcquireImage(VulkanSemaphore* semaphore, VulkanFence* fence
 		return -1;
 
 	uint32_t imageIndex;
-	VkResult result = vkAcquireNextImageKHR(device->device, swapchain, 1'000'000'000, semaphore ? semaphore->semaphore : VK_NULL_HANDLE, fence ? fence->fence : VK_NULL_HANDLE, &imageIndex);
+	VkResult result = device->vk.vkAcquireNextImageKHR(device->device, swapchain, 1'000'000'000, semaphore ? semaphore->semaphore : VK_NULL_HANDLE, fence ? fence->fence : VK_NULL_HANDLE, &imageIndex);
 	if (result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR)
 	{
 		return imageIndex;
@@ -259,7 +259,7 @@ void VulkanSwapChain::QueuePresent(int imageIndex, VulkanSemaphore* semaphore)
 	presentInfo.pSwapchains = &swapchain;
 	presentInfo.pImageIndices = &index;
 	presentInfo.pResults = nullptr;
-	VkResult result = vkQueuePresentKHR(device->PresentQueue, &presentInfo);
+	VkResult result = device->vk.vkQueuePresentKHR(device->PresentQueue, &presentInfo);
 	if (result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR)
 	{
 		return;

@@ -60,6 +60,10 @@ public:
 	// lean init for an offscreen peer device - see the .cpp for why it can't just reuse
 	// InitializeState().
 	void InitializePeerResources();
+	// the secondary GPU's device, if this machine has one and it built successfully -
+	// null otherwise (single-GPU machine, or the peer failed to construct). only ever
+	// set on the primary; a peer never has a peer of its own.
+	VulkanRenderDevice* GetPeerDevice() const { return mPeerDevice.get(); }
 	bool CompileNextShader() override;
 	void PrecacheMaterial(FMaterial *mat, int translation) override;
 	void UpdatePalette() override;
@@ -125,6 +129,8 @@ private:
 	// true for a device built via the peer/offscreen constructor - the destructor checks
 	// this so tearing down a peer never touches the primary's OpenXR session.
 	bool mIsPeerDevice = false;
+
+	std::unique_ptr<VulkanRenderDevice> mPeerDevice;
 };
 
 class CVulkanError : public CEngineError

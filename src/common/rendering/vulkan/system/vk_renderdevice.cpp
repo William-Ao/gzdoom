@@ -146,10 +146,8 @@ VulkanRenderDevice::VulkanRenderDevice(void *hMonitor, bool fullscreen, std::sha
 // physicalDeviceIndex indexes into *this builder's own* FindDevices() result (no surface,
 // so no swapchain requirement) - not the raw vkEnumeratePhysicalDevices order, and not the
 // primary's own filtered list either (that one requires swapchain support via .Surface()).
-// a caller picking which index to pass needs to build a matching no-surface candidate
-// list itself before comparing against it - see the now-reverted persistent-peer attempt
-// in git history for why, and docs/milestones.md for the actual blocker that caused the
-// revert.
+// FindPeerDeviceIndex() below builds the matching candidate list before picking an index,
+// so the two stay in the same space.
 VulkanRenderDevice::VulkanRenderDevice(std::shared_ptr<VulkanInstance> instance, int physicalDeviceIndex) :
 	Super()
 {
@@ -164,14 +162,34 @@ VulkanRenderDevice::VulkanRenderDevice(std::shared_ptr<VulkanInstance> instance,
 	device = builder.Create(instance);
 }
 
+// finds the physical device index a peer constructor should use: the first device in the
+// no-surface candidate list that isn't the one `existing` (the primary) is already running
+// on. returns -1 if there isn't a second usable device.
+static int FindPeerDeviceIndex(std::shared_ptr<VulkanInstance> instance, VulkanDevice *existing)
+{
+	VulkanDeviceBuilder finder;
+	finder.OptionalRayQuery();
+	auto candidates = finder.FindDevices(instance);
+	for (size_t i = 0; i < candidates.size(); i++)
+	{
+		if (candidates[i].Device->Device != existing->PhysicalDevice.Device)
+			return (int)i;
+	}
+	return -1;
+}
+
 VulkanRenderDevice::~VulkanRenderDevice()
 {
+	// tear the peer down first, while the primary (and the shared VulkanInstance) is still
+	// in a fully known-good state. mPeerDevice is always null on a peer itself.
+	mPeerDevice.reset();
+
 	// the OpenXR session is tied to the *primary* device - a peer tearing down must never
 	// touch it, or it'd yank the headset out from under whatever's still using the primary.
 	if (!mIsPeerDevice)
 		DGpuOpenXRSession::Get().Shutdown(); // while the device backing it is still fully alive
 
-	vkDeviceWaitIdle(device->device); // make sure the GPU is no longer using any objects before RAII tears them down
+	device->vk.vkDeviceWaitIdle(device->device); // make sure the GPU is no longer using any objects before RAII tears them down
 
 	delete mVertexData;
 	delete mSkyData;
@@ -246,6 +264,31 @@ void VulkanRenderDevice::InitializeState()
 #else
 	mRenderState.reset(new VkRenderState(this));
 #endif
+
+	// dual-GPU bridge: if this machine has a second usable Vulkan device, stand up a peer
+	// for it now so texture/buffer duplication has somewhere to duplicate to later. safe to
+	// keep alive for the whole session now that ZVulkan uses a per-device dispatch table
+	// (see docs/milestones.md - a second VkDevice used to silently corrupt the primary's
+	// own Vulkan calls via volk's old global-only dispatch). never fatal if this fails - a
+	// peer is an optimization for stereo rendering, not something startup should die over.
+	if (!mIsPeerDevice)
+	{
+		int peerIndex = FindPeerDeviceIndex(device->Instance, device.get());
+		if (peerIndex >= 0)
+		{
+			try
+			{
+				auto peer = std::make_unique<VulkanRenderDevice>(device->Instance, peerIndex);
+				peer->InitializePeerResources();
+				Printf("dual-GPU: peer device ready (%s)\n", peer->DeviceName());
+				mPeerDevice = std::move(peer);
+			}
+			catch (const std::exception& e)
+			{
+				Printf(TEXTCOLOR_YELLOW "dual-GPU: peer device init failed (%s) - continuing single-GPU\n", e.what());
+			}
+		}
+	}
 }
 
 // lean init path for an offscreen peer device (see the peer constructor above). a peer

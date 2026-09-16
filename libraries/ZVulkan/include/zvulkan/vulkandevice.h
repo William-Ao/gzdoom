@@ -32,6 +32,13 @@ public:
 	VkDevice device = VK_NULL_HANDLE;
 	VmaAllocator allocator = VK_NULL_HANDLE;
 
+	// per-device dispatch table. volk's plain vkWhatever(...) globals only ever point at
+	// the most recently created device - fine for one device, silently wrong the moment a
+	// second VkDevice exists in the same process. every device-level call in this library
+	// (and gzdoom's own vulkan backend) goes through device->vk.vkWhatever(...) instead so
+	// two live devices can coexist without corrupting each other's calls.
+	VolkDeviceTable vk = {};
+
 	VkQueue GraphicsQueue = VK_NULL_HANDLE;
 	VkQueue PresentQueue = VK_NULL_HANDLE;
 

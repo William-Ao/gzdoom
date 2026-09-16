@@ -312,7 +312,7 @@ std::unique_ptr<VulkanShader> ShaderBuilder::Create(const char *shadername, Vulk
 	createInfo.pCode = spirv.data();
 
 	VkShaderModule shaderModule;
-	VkResult result = vkCreateShaderModule(device->device, &createInfo, nullptr, &shaderModule);
+	VkResult result = device->vk.vkCreateShaderModule(device->device, &createInfo, nullptr, &shaderModule);
 	if (result != VK_SUCCESS)
 		VulkanError("Could not create vulkan shader module");
 
@@ -519,7 +519,7 @@ ImageViewBuilder& ImageViewBuilder::Image(VulkanImage* image, VkFormat format, V
 std::unique_ptr<VulkanImageView> ImageViewBuilder::Create(VulkanDevice* device)
 {
 	VkImageView view;
-	VkResult result = vkCreateImageView(device->device, &viewInfo, nullptr, &view);
+	VkResult result = device->vk.vkCreateImageView(device->device, &viewInfo, nullptr, &view);
 	CheckVulkanError(result, "Could not create texture image view");
 
 	auto obj = std::make_unique<VulkanImageView>(device, view);
@@ -606,7 +606,7 @@ SamplerBuilder& SamplerBuilder::MaxLod(float value)
 std::unique_ptr<VulkanSampler> SamplerBuilder::Create(VulkanDevice* device)
 {
 	VkSampler sampler;
-	VkResult result = vkCreateSampler(device->device, &samplerInfo, nullptr, &sampler);
+	VkResult result = device->vk.vkCreateSampler(device->device, &samplerInfo, nullptr, &sampler);
 	CheckVulkanError(result, "Could not create texture sampler");
 	auto obj = std::make_unique<VulkanSampler>(device, sampler);
 	if (debugName)
@@ -703,7 +703,7 @@ AccelerationStructureBuilder& AccelerationStructureBuilder::Buffer(VulkanBuffer*
 std::unique_ptr<VulkanAccelerationStructure> AccelerationStructureBuilder::Create(VulkanDevice* device)
 {
 	VkAccelerationStructureKHR hande = {};
-	VkResult result = vkCreateAccelerationStructureKHR(device->device, &createInfo, nullptr, &hande);
+	VkResult result = device->vk.vkCreateAccelerationStructureKHR(device->device, &createInfo, nullptr, &hande);
 	if (result != VK_SUCCESS)
 		VulkanError("vkCreateAccelerationStructureKHR failed");
 	auto obj = std::make_unique<VulkanAccelerationStructure>(device, hande);
@@ -745,7 +745,7 @@ ComputePipelineBuilder& ComputePipelineBuilder::ComputeShader(VulkanShader* shad
 std::unique_ptr<VulkanPipeline> ComputePipelineBuilder::Create(VulkanDevice* device)
 {
 	VkPipeline pipeline;
-	vkCreateComputePipelines(device->device, cache ? cache->cache : VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline);
+	device->vk.vkCreateComputePipelines(device->device, cache ? cache->cache : VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline);
 	auto obj = std::make_unique<VulkanPipeline>(device, pipeline);
 	if (debugName)
 		obj->SetDebugName(debugName);
@@ -790,7 +790,7 @@ DescriptorSetLayoutBuilder& DescriptorSetLayoutBuilder::AddBinding(int index, Vk
 std::unique_ptr<VulkanDescriptorSetLayout> DescriptorSetLayoutBuilder::Create(VulkanDevice* device)
 {
 	VkDescriptorSetLayout layout;
-	VkResult result = vkCreateDescriptorSetLayout(device->device, &layoutInfo, nullptr, &layout);
+	VkResult result = device->vk.vkCreateDescriptorSetLayout(device->device, &layoutInfo, nullptr, &layout);
 	CheckVulkanError(result, "Could not create descriptor set layout");
 	auto obj = std::make_unique<VulkanDescriptorSetLayout>(device, layout);
 	if (debugName)
@@ -834,7 +834,7 @@ DescriptorPoolBuilder& DescriptorPoolBuilder::AddPoolSize(VkDescriptorType type,
 std::unique_ptr<VulkanDescriptorPool> DescriptorPoolBuilder::Create(VulkanDevice* device)
 {
 	VkDescriptorPool descriptorPool;
-	VkResult result = vkCreateDescriptorPool(device->device, &poolInfo, nullptr, &descriptorPool);
+	VkResult result = device->vk.vkCreateDescriptorPool(device->device, &poolInfo, nullptr, &descriptorPool);
 	CheckVulkanError(result, "Could not create descriptor pool");
 	auto obj = std::make_unique<VulkanDescriptorPool>(device, descriptorPool);
 	if (debugName)
@@ -860,7 +860,7 @@ QueryPoolBuilder& QueryPoolBuilder::QueryType(VkQueryType type, int count, VkQue
 std::unique_ptr<VulkanQueryPool> QueryPoolBuilder::Create(VulkanDevice* device)
 {
 	VkQueryPool queryPool;
-	VkResult result = vkCreateQueryPool(device->device, &poolInfo, nullptr, &queryPool);
+	VkResult result = device->vk.vkCreateQueryPool(device->device, &poolInfo, nullptr, &queryPool);
 	CheckVulkanError(result, "Could not create query pool");
 	auto obj = std::make_unique<VulkanQueryPool>(device, queryPool);
 	if (debugName)
@@ -910,7 +910,7 @@ FramebufferBuilder& FramebufferBuilder::Size(int width, int height, int layers)
 std::unique_ptr<VulkanFramebuffer> FramebufferBuilder::Create(VulkanDevice* device)
 {
 	VkFramebuffer framebuffer = 0;
-	VkResult result = vkCreateFramebuffer(device->device, &framebufferInfo, nullptr, &framebuffer);
+	VkResult result = device->vk.vkCreateFramebuffer(device->device, &framebufferInfo, nullptr, &framebuffer);
 	CheckVulkanError(result, "Could not create framebuffer");
 	auto obj = std::make_unique<VulkanFramebuffer>(device, framebuffer);
 	if (debugName)
@@ -1237,7 +1237,7 @@ std::unique_ptr<VulkanPipeline> GraphicsPipelineBuilder::Create(VulkanDevice* de
 	colorBlending.attachmentCount = (uint32_t)colorBlendAttachments.size();
 
 	VkPipeline pipeline = 0;
-	VkResult result = vkCreateGraphicsPipelines(device->device, cache ? cache->cache : VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline);
+	VkResult result = device->vk.vkCreateGraphicsPipelines(device->device, cache ? cache->cache : VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline);
 	CheckVulkanError(result, "Could not create graphics pipeline");
 	auto obj = std::make_unique<VulkanPipeline>(device, pipeline);
 	if (debugName)
@@ -1275,7 +1275,7 @@ PipelineLayoutBuilder& PipelineLayoutBuilder::AddPushConstantRange(VkShaderStage
 std::unique_ptr<VulkanPipelineLayout> PipelineLayoutBuilder::Create(VulkanDevice* device)
 {
 	VkPipelineLayout pipelineLayout;
-	VkResult result = vkCreatePipelineLayout(device->device, &pipelineLayoutInfo, nullptr, &pipelineLayout);
+	VkResult result = device->vk.vkCreatePipelineLayout(device->device, &pipelineLayoutInfo, nullptr, &pipelineLayout);
 	CheckVulkanError(result, "Could not create pipeline layout");
 	auto obj = std::make_unique<VulkanPipelineLayout>(device, pipelineLayout);
 	if (debugName)
@@ -1323,7 +1323,7 @@ std::unique_ptr<VulkanPipelineCache> PipelineCacheBuilder::Create(VulkanDevice* 
 	}
 
 	VkPipelineCache pipelineCache;
-	VkResult result = vkCreatePipelineCache(device->device, &pipelineCacheInfo, nullptr, &pipelineCache);
+	VkResult result = device->vk.vkCreatePipelineCache(device->device, &pipelineCacheInfo, nullptr, &pipelineCache);
 	CheckVulkanError(result, "Could not create pipeline cache");
 	auto obj = std::make_unique<VulkanPipelineCache>(device, pipelineCache);
 	if (debugName)
@@ -1427,7 +1427,7 @@ RenderPassBuilder& RenderPassBuilder::AddSubpassDepthStencilAttachmentRef(uint32
 std::unique_ptr<VulkanRenderPass> RenderPassBuilder::Create(VulkanDevice* device)
 {
 	VkRenderPass renderPass = 0;
-	VkResult result = vkCreateRenderPass(device->device, &renderPassInfo, nullptr, &renderPass);
+	VkResult result = device->vk.vkCreateRenderPass(device->device, &renderPassInfo, nullptr, &renderPass);
 	CheckVulkanError(result, "Could not create render pass");
 	auto obj = std::make_unique<VulkanRenderPass>(device, renderPass);
 	if (debugName)
@@ -1570,7 +1570,7 @@ QueueSubmit& QueueSubmit::AddSignal(VulkanSemaphore* semaphore)
 
 void QueueSubmit::Execute(VulkanDevice* device, VkQueue queue, VulkanFence* fence)
 {
-	VkResult result = vkQueueSubmit(device->GraphicsQueue, 1, &submitInfo, fence ? fence->fence : VK_NULL_HANDLE);
+	VkResult result = device->vk.vkQueueSubmit(device->GraphicsQueue, 1, &submitInfo, fence ? fence->fence : VK_NULL_HANDLE);
 	CheckVulkanError(result, "Could not submit command buffer");
 }
 
@@ -1678,7 +1678,7 @@ WriteDescriptors& WriteDescriptors::AddAccelerationStructure(VulkanDescriptorSet
 void WriteDescriptors::Execute(VulkanDevice* device)
 {
 	if (!writes.empty())
-		vkUpdateDescriptorSets(device->device, (uint32_t)writes.size(), writes.data(), 0, nullptr);
+		device->vk.vkUpdateDescriptorSets(device->device, (uint32_t)writes.size(), writes.data(), 0, nullptr);
 }
 
 /////////////////////////////////////////////////////////////////////////////
