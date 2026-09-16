@@ -42,6 +42,9 @@
 #include "hwrenderer/data/shaderuniforms.h"
 #include "hw_lightbuffer.h"
 #include "hw_bonebuffer.h"
+#include "dgpu_openxr_session.h"
+
+EXTERN_CVAR(Int, vr_mode)
 
 #include "vk_renderdevice.h"
 #include "vk_hwbuffer.h"
@@ -134,6 +137,8 @@ VulkanRenderDevice::VulkanRenderDevice(void *hMonitor, bool fullscreen, std::sha
 
 VulkanRenderDevice::~VulkanRenderDevice()
 {
+	DGpuOpenXRSession::Get().Shutdown(); // while the device backing it is still fully alive
+
 	vkDeviceWaitIdle(device->device); // make sure the GPU is no longer using any objects before RAII tears them down
 
 	delete mVertexData;
@@ -210,8 +215,26 @@ void VulkanRenderDevice::InitializeState()
 #endif
 }
 
+static void UpdateOpenXRLifecycle(VulkanRenderDevice *device)
+{
+	// tracks vr_mode across frames so this only fires on the actual transition, not every
+	// frame - Init() isn't free to fail (creates+destroys an XrInstance) and calling it
+	// every frame with no runtime installed would be pure waste.
+	static bool wasOpenXR = false;
+	bool isOpenXR = (vr_mode == VR_OPENXR);
+
+	if (isOpenXR && !wasOpenXR)
+		DGpuOpenXRSession::Get().Init(device); // failure is fine, IsActive() just stays false
+	else if (!isOpenXR && wasOpenXR)
+		DGpuOpenXRSession::Get().Shutdown();
+
+	wasOpenXR = isOpenXR;
+}
+
 void VulkanRenderDevice::Update()
 {
+	UpdateOpenXRLifecycle(this);
+
 	twoD.Reset();
 	Flush3D.Reset();
 

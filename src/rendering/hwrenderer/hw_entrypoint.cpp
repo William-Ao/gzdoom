@@ -42,6 +42,73 @@
 #include "d_main.h"
 #include "g_cvars.h"
 #include "v_draw.h"
+#include "hw_vrmodes.h"
+#include "dgpu_openxr_session.h"
+
+EXTERN_CVAR(Int, vr_mode)
+EXTERN_CVAR(Float, vr_hunits_per_meter)
+EXTERN_CVAR(Bool, vr_swap_eyes)
+
+namespace
+{
+	// set once per real frame (mainview && toscreen) by BeginOpenXRFrame(), read by
+	// ApplyOpenXREye() for every eye in that same frame's loop.
+	bool openxrFrameActive = false;
+
+	void BeginOpenXRFrame()
+	{
+		openxrFrameActive = false;
+		if (vr_mode != VR_OPENXR)
+			return;
+
+		auto &xr = DGpuOpenXRSession::Get();
+		if (!xr.IsActive())
+			return; // no runtime installed, or the lifecycle in VulkanRenderDevice hasn't caught up yet
+
+		DGpuPose headPose;
+		openxrFrameActive = xr.BeginFrame(headPose); // false just means "skip this frame", e.g. not focused yet
+	}
+
+	// feeds this eye's real tracked pose/fov into vrmi_openxr for GetProjection/GetViewShift
+	// to pick up. hwYawDeg is the *existing* render yaw (driven by mouse/gamepad look, same
+	// as every other stereo mode uses) - head orientation itself isn't wired into the actual
+	// camera look direction yet, only position and fov are. see the commit message for why.
+	void ApplyOpenXREye(VREyeInfo &eye, int eyeIndex, double hwYawDeg)
+	{
+		if (!openxrFrameActive)
+		{
+			eye.mHasPoseOverride = false;
+			return;
+		}
+
+		const DGpuEyeFrame &ef = DGpuOpenXRSession::Get().GetEye(eyeIndex);
+
+		// openxr: x = right, y = up, z = back (meters, absolute in the runtime's local space -
+		// this is real per-eye ipd *and* any physical lean/head movement, not just a fixed
+		// ipd constant). forward/back lean isn't applied to the world position yet - would
+		// need its own basis vector derived from hwYawDeg and there's no headset here to
+		// verify the sign against, so left at 0 rather than guess.
+		double rightMeters = vr_swap_eyes ? -ef.pose.px : ef.pose.px;
+		double upMeters = ef.pose.py;
+
+		double rightUnits = rightMeters * vr_hunits_per_meter;
+		double upUnits = upMeters * vr_hunits_per_meter;
+
+		// same right-vector convention GetViewShift's fallback formula already uses
+		// (dx = -cos(yaw), dy = sin(yaw) for a positive rightward shift), just reused here
+		// instead of re-derived so the sign is guaranteed consistent with every other mode.
+		double yaw = hwYawDeg * (M_PI / 180.0);
+		eye.mOverrideShift.X = -cos(yaw) * rightUnits;
+		eye.mOverrideShift.Y = sin(yaw) * rightUnits;
+		eye.mOverrideShift.Z = upUnits;
+
+		eye.mOverrideFovLeft = ef.fovLeft;
+		eye.mOverrideFovRight = ef.fovRight;
+		eye.mOverrideFovUp = ef.fovUp;
+		eye.mOverrideFovDown = ef.fovDown;
+		eye.mHasPoseOverride = true;
+	}
+}
 
 #include "hw_lightbuffer.h"
 #include "hw_bonebuffer.h"
@@ -135,6 +202,8 @@ sector_t* RenderViewpoint(FRenderViewpoint& mainvp, AActor* camera, IntRect* bou
 	// Fixme. The view offsetting should be done with a static table and not require setup of the entire render state for the mode.
 	auto vrmode = VRMode::GetVRMode(mainview && toscreen);
 	const int eyeCount = vrmode->mEyeCount;
+	if (mainview && toscreen)
+		BeginOpenXRFrame();
 	screen->FirstEye();
 	for (int eye_ix = 0; eye_ix < eyeCount; ++eye_ix)
 	{
@@ -162,6 +231,9 @@ sector_t* RenderViewpoint(FRenderViewpoint& mainvp, AActor* camera, IntRect* bou
 
 		di->Viewpoint.FieldOfView = DAngle::fromDeg(fov);	// Set the real FOV for the current scene (it's not necessarily the same as the global setting in r_viewpoint)
 
+		if (mainview && toscreen)
+			ApplyOpenXREye(vrmi_openxr.mEyes[eye_ix], eye_ix, vp.HWAngles.Yaw.Degrees());
+
 		// Stereo mode specific perspective projection
 		float inv_iso_dist = 1.0f;
 		bool iso_ortho = (camera->ViewPos != NULL) && (camera->ViewPos->Flags & VPSF_ORTHOGRAPHIC);
@@ -188,6 +260,12 @@ sector_t* RenderViewpoint(FRenderViewpoint& mainvp, AActor* camera, IntRect* bou
 
 			screen->PostProcessScene(false, cm, flash, [&]() { di->DrawEndScene2D(mainvp.sector, RenderState); });
 			PostProcess.Unclock();
+
+			// this eye's finished image is about to be overwritten by the next eye (vrmi_openxr
+			// renders both full-size into the same target, sequentially - there's no side by
+			// side split to crop out of), so pull it into the runtime's swapchain now.
+			if (openxrFrameActive)
+				DGpuOpenXRSession::Get().SubmitEye(eye_ix, 0, 0, screen->mScreenViewport.width, screen->mScreenViewport.height);
 		}
 		// Reset colormap so 2D drawing isn't affected
 		RenderState.SetSpecialColormap(CM_DEFAULT, 1);
@@ -196,6 +274,9 @@ sector_t* RenderViewpoint(FRenderViewpoint& mainvp, AActor* camera, IntRect* bou
 		if (eyeCount - eye_ix > 1)
 			screen->NextEye(eyeCount);
 	}
+
+	if (openxrFrameActive)
+		DGpuOpenXRSession::Get().EndFrame();
 
 	return mainvp.sector;
 }

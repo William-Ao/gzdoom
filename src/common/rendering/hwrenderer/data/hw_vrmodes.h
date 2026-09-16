@@ -56,3 +56,7 @@ struct VRMode
 	void AdjustViewport(DFrameBuffer *fb) const;
 	VSMatrix GetHUDSpriteProjection() const;
 };
+
+// non-const on purpose - hw_entrypoint.cpp pokes real per-frame tracking data into
+// mEyes[].mOverride* here before each eye renders, whenever vr_mode is VR_OPENXR.
+extern VRMode vrmi_openxr;
