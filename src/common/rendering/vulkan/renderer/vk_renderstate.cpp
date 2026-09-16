@@ -49,6 +49,10 @@ VkRenderState::VkRenderState(VulkanRenderDevice* fb) : fb(fb), mStreamBufferWrit
 
 void VkRenderState::ClearScreen()
 {
+	// still screen->/SCREENWIDTH/SCREENHEIGHT (the primary's window), not fb-> - this is
+	// about clearing to the visible window's size, which isn't a concept an offscreen peer
+	// has an equivalent of yet. the other screen-> reads in this file were just this
+	// instance's own device state under the wrong name; this one is genuinely primary-only.
 	screen->mViewpoints->Set2D(*this, SCREENWIDTH, SCREENHEIGHT);
 	SetColor(0, 0, 0);
 	Apply(DT_TriangleStrip);
@@ -108,7 +112,7 @@ void VkRenderState::SetColorMask(bool r, bool g, bool b, bool a)
 
 void VkRenderState::SetStencil(int offs, int op, int flags)
 {
-	mStencilRef = screen->stencilValue + offs;
+	mStencilRef = fb->stencilValue + offs;
 	mStencilRefChanged = true;
 	mStencilOp = op;
 
@@ -341,7 +345,7 @@ void VkRenderState::ApplyStreamData()
 	mStreamData.useVertexData = passManager->GetVertexFormat(static_cast<VkHardwareVertexBuffer*>(mVertexBuffer)->VertexFormat)->UseVertexData;
 
 	if (mMaterial.mMaterial && mMaterial.mMaterial->Source())
-		mStreamData.timer = static_cast<float>((double)(screen->FrameTime - firstFrame) * (double)mMaterial.mMaterial->Source()->GetShaderSpeed() / 1000.);
+		mStreamData.timer = static_cast<float>((double)(fb->FrameTime - firstFrame) * (double)mMaterial.mMaterial->Source()->GetShaderSpeed() / 1000.);
 	else
 		mStreamData.timer = 0.0f;
 
@@ -566,7 +570,7 @@ void VkRenderState::BeginRenderPass(VulkanCommandBuffer *cmdbuffer)
 	beginInfo.RenderPass(mPassSetup->GetRenderPass(mClearTargets));
 	beginInfo.RenderArea(0, 0, mRenderTarget.Width, mRenderTarget.Height);
 	beginInfo.Framebuffer(framebuffer.get());
-	beginInfo.AddClearColor(screen->mSceneClearColor[0], screen->mSceneClearColor[1], screen->mSceneClearColor[2], screen->mSceneClearColor[3]);
+	beginInfo.AddClearColor(fb->mSceneClearColor[0], fb->mSceneClearColor[1], fb->mSceneClearColor[2], fb->mSceneClearColor[3]);
 	if (key.DrawBuffers > 1)
 		beginInfo.AddClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 	if (key.DrawBuffers > 2)
