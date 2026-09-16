@@ -12,12 +12,12 @@ endif()
 
 find_path(ZMUSIC_INCLUDE_DIR zmusic.h
     HINTS
-    ${CMAKE_SOURCE_DIR}/build/zmusic/include
+    ${PROJECT_SOURCE_DIR}/build/zmusic/include
 )
 
 find_library(ZMUSIC_LIBRARIES NAMES zmusic
     HINTS
-    ${CMAKE_SOURCE_DIR}/build/zmusic/build/source
+    ${PROJECT_SOURCE_DIR}/build/zmusic/build/source
 )
 mark_as_advanced(ZMUSIC_LIBRARIES ZMUSIC_INCLUDE_DIR)
 
