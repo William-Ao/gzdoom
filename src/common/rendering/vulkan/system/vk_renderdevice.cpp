@@ -23,6 +23,7 @@
 #include <zvulkan/vulkanobjects.h>
 
 #include <inttypes.h>
+#include <vector>
 
 #include "v_video.h"
 #include "m_png.h"
@@ -125,7 +126,7 @@ void VulkanPrintLog(const char* typestr, const std::string& msg)
 }
 
 VulkanRenderDevice::VulkanRenderDevice(void *hMonitor, bool fullscreen, std::shared_ptr<VulkanSurface> surface) :
-	Super(hMonitor, fullscreen) 
+	Super(hMonitor, fullscreen)
 {
 	VulkanDeviceBuilder builder;
 	builder.OptionalRayQuery();
@@ -135,9 +136,30 @@ VulkanRenderDevice::VulkanRenderDevice(void *hMonitor, bool fullscreen, std::sha
 	device = builder.Create(surface->Instance);
 }
 
+// peer/offscreen constructor - no window, no swapchain. for the dual-GPU bridge's second
+// device (see compositor/): it never presents anything itself, so there's no surface to
+// query presentation support against, and no window for the Super() base to touch (the
+// no-arg SystemBaseFrameBuffer constructor, added specifically for this). reuses the
+// *same* VulkanInstance the primary device already created rather than standing up a
+// redundant second one - one VkInstance, two VkDevices under it.
+VulkanRenderDevice::VulkanRenderDevice(std::shared_ptr<VulkanInstance> instance, int physicalDeviceIndex) :
+	Super()
+{
+	mIsPeerDevice = true;
+
+	VulkanDeviceBuilder builder;
+	builder.OptionalRayQuery();
+	builder.SelectDevice(physicalDeviceIndex);
+	SupportedDevices = builder.FindDevices(instance);
+	device = builder.Create(instance);
+}
+
 VulkanRenderDevice::~VulkanRenderDevice()
 {
-	DGpuOpenXRSession::Get().Shutdown(); // while the device backing it is still fully alive
+	// the OpenXR session is tied to the *primary* device - a peer tearing down must never
+	// touch it, or it'd yank the headset out from under whatever's still using the primary.
+	if (!mIsPeerDevice)
+		DGpuOpenXRSession::Get().Shutdown(); // while the device backing it is still fully alive
 
 	vkDeviceWaitIdle(device->device); // make sure the GPU is no longer using any objects before RAII tears them down
 
@@ -157,7 +179,8 @@ VulkanRenderDevice::~VulkanRenderDevice()
 	if (mShaderManager)
 		mShaderManager->Deinit();
 
-	mCommands->DeleteFrameObjects();
+	if (mCommands)
+		mCommands->DeleteFrameObjects();
 }
 
 void VulkanRenderDevice::InitializeState()
@@ -213,6 +236,38 @@ void VulkanRenderDevice::InitializeState()
 #else
 	mRenderState.reset(new VkRenderState(this));
 #endif
+}
+
+// lean init path for an offscreen peer device (see the peer constructor above). a peer
+// only ever holds duplicate GPU-resident copies of textures/buffers for the primary to
+// pull from - it never renders or presents on its own - so this skips every subsystem
+// that assumes a real swapchain (framebuffer/postprocess/render pass/raytrace manager,
+// screen/save render buffers, shader manager, render state) along with the on-screen
+// scene-drawing buffers (flat vertices, sky, viewpoints, lights, bones), none of which
+// mean anything without an actual frame being rendered. those also lean on the global
+// `screen` singleton internally (screen->CreateIndexBuffer() etc.) rather than `this`,
+// which would silently create them against the *primary* device instead of the peer -
+// another reason they don't belong here.
+void VulkanRenderDevice::InitializePeerResources()
+{
+	switch (device->PhysicalDevice.Properties.Properties.vendorID)
+	{
+	case 0x1002: vendorstring = "ATI Technologies Inc.";     break;
+	case 0x10DE: vendorstring = "NVIDIA Corporation";  break;
+	case 0x8086: vendorstring = "Intel";   break;
+	default:     vendorstring = "Unknown"; break;
+	}
+
+	hwcaps = RFL_SHADER_STORAGE_BUFFER | RFL_BUFFER_STORAGE;
+	glslversion = 4.50f;
+	uniformblockalignment = (unsigned int)device->PhysicalDevice.Properties.Properties.limits.minUniformBufferOffsetAlignment;
+	maxuniformblock = device->PhysicalDevice.Properties.Properties.limits.maxUniformBufferRange;
+
+	mCommands.reset(new VkCommandBufferManager(this));
+	mSamplerManager.reset(new VkSamplerManager(this));
+	mTextureManager.reset(new VkTextureManager(this));
+	mBufferManager.reset(new VkBufferManager(this));
+	mBufferManager->Init();
 }
 
 static void UpdateOpenXRLifecycle(VulkanRenderDevice *device)

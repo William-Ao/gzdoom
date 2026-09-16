@@ -36,4 +36,10 @@ protected:
 	char m_displayDeviceNameBuffer[32/*CCHDEVICENAME*/];	// do not use windows.h constants here!
 	char *m_displayDeviceName;
 	void *m_Monitor;
+
+	// false only for the no-arg constructor (an offscreen peer device, e.g. the dual-GPU
+	// bridge's second device) - the destructor unconditionally touches the shared game
+	// window and shuts down the global Video object otherwise, which would be badly wrong
+	// for an object that never owned a window in the first place.
+	bool m_OwnsWindow = true;
 };

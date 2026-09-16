@@ -344,6 +344,17 @@ void SystemBaseFrameBuffer::PositionWindow(bool fullscreen, bool initialcall)
 //
 //==========================================================================
 
+// declared in the header, never previously implemented - nothing called it, so this is
+// pure addition. for a device that isn't presenting to a window at all (the dual-GPU
+// bridge's offscreen peer device) - skips every bit of window/monitor setup the
+// parameterized constructor below does, since none of it means anything without a window.
+SystemBaseFrameBuffer::SystemBaseFrameBuffer() : DFrameBuffer(1, 1)
+{
+	m_Monitor = nullptr;
+	m_displayDeviceName = nullptr;
+	m_OwnsWindow = false;
+}
+
 SystemBaseFrameBuffer::SystemBaseFrameBuffer(void *hMonitor, bool fullscreen) : DFrameBuffer(vid_defwidth, vid_defheight)
 {
 	m_Monitor = hMonitor;
@@ -363,6 +374,8 @@ SystemBaseFrameBuffer::SystemBaseFrameBuffer(void *hMonitor, bool fullscreen) : 
 
 SystemBaseFrameBuffer::~SystemBaseFrameBuffer()
 {
+	if (!m_OwnsWindow) return; // offscreen peer device - never touched the window, nothing to undo
+
 	if (!m_Fullscreen) SaveWindowedPos();
 
 	ShowWindow (mainwindow.GetHandle(), SW_SHOW);

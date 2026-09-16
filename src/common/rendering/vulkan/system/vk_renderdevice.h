@@ -48,12 +48,18 @@ public:
 	unsigned int GetLightBufferBlockSize() const;
 
 	VulkanRenderDevice(void *hMonitor, bool fullscreen, std::shared_ptr<VulkanSurface> surface);
+	// peer/offscreen constructor - no window, no swapchain, for the dual-GPU bridge's
+	// second device. see the .cpp for why this exists as a separate overload.
+	VulkanRenderDevice(std::shared_ptr<VulkanInstance> instance, int physicalDeviceIndex);
 	~VulkanRenderDevice();
 	bool IsVulkan() override { return true; }
 
 	void Update() override;
 
 	void InitializeState() override;
+	// lean init for an offscreen peer device - see the .cpp for why it can't just reuse
+	// InitializeState().
+	void InitializePeerResources();
 	bool CompileNextShader() override;
 	void PrecacheMaterial(FMaterial *mat, int translation) override;
 	void UpdatePalette() override;
@@ -115,6 +121,10 @@ private:
 	VkRenderBuffers *mActiveRenderBuffers = nullptr;
 
 	bool mVSync = false;
+
+	// true for a device built via the peer/offscreen constructor - the destructor checks
+	// this so tearing down a peer never touches the primary's OpenXR session.
+	bool mIsPeerDevice = false;
 };
 
 class CVulkanError : public CEngineError
