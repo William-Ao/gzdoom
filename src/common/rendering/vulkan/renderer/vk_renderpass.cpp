@@ -41,7 +41,16 @@ VkRenderPassManager::VkRenderPassManager(VulkanRenderDevice* fb) : fb(fb)
 {
 	FString path = M_GetCachePath(true);
 	CreatePath(path.GetChars());
-	CacheFilename = path + "/pipelinecache.zdpc";
+	// pipeline caches are tied to one specific GPU+driver combination (that's what
+	// pipelineCacheUUID identifies) - keying the filename on it means the primary and a
+	// dual-GPU bridge peer, or just two different GPUs across runs, never clobber each
+	// other's cache file. a fixed name here would mean whichever device saved last on
+	// exit silently wins, and the other one never gets an actual cache hit.
+	const auto& uuid = fb->device->PhysicalDevice.Properties.Properties.pipelineCacheUUID;
+	FString uuidHex;
+	for (int i = 0; i < VK_UUID_SIZE; i++)
+		uuidHex.AppendFormat("%02x", uuid[i]);
+	CacheFilename = path + "/pipelinecache-" + uuidHex + ".zdpc";
 
 	PipelineCacheBuilder builder;
 	builder.DebugName("PipelineCache");
