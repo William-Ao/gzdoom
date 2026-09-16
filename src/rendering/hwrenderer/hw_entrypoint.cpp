@@ -55,24 +55,93 @@ namespace
 	// ApplyOpenXREye() for every eye in that same frame's loop.
 	bool openxrFrameActive = false;
 
-	void BeginOpenXRFrame()
+	// standard quaternion -> yaw/pitch/roll decomposition, entirely in openxr's own space
+	// (right-handed, x-right, y-up, -z-forward). checked by hand against the identity and
+	// each pure single-axis rotation, so the *magnitudes* here are solid. what's NOT checked:
+	// which of these signs is the one doom actually wants once mapped onto Angles below -
+	// there's no headset on this machine to look through and confirm which way is "right".
+	// if look direction ends up backwards, mirrored, or upside-down, flip the sign at the
+	// point it gets assigned into mainvp.Angles rather than anywhere in here.
+	void QuatToOpenXRAngles(const DGpuPose &pose, double &yawDeg, double &pitchDeg, double &rollDeg)
+	{
+		double x = pose.qx, y = pose.qy, z = pose.qz, w = pose.qw;
+
+		double fx = -2.0 * (x * z + w * y);
+		double fy = 2.0 * (w * x - y * z);
+		double fz = 2.0 * (x * x + y * y) - 1.0;
+		if (fy > 1.0) fy = 1.0;
+		if (fy < -1.0) fy = -1.0;
+
+		double yaw = atan2(fx, -fz);
+		double pitch = asin(fy);
+		double roll = atan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (x * x + z * z));
+
+		const double rad2deg = 180.0 / M_PI;
+		yawDeg = yaw * rad2deg;
+		pitchDeg = pitch * rad2deg;
+		rollDeg = roll * rad2deg;
+	}
+
+	// true once BeginOpenXRFrame() has captured the player's pre-vr facing direction as the
+	// "zero" for head yaw. reset whenever tracking (re)starts so re-entering vr_mode 15 later
+	// recalibrates to wherever the player happens to be facing at that moment, instead of
+	// snapping the view to whatever direction was captured the first time.
+	bool openxrCalibrated = false;
+	double openxrCalibrationYawDeg = 0.0;
+
+	void BeginOpenXRFrame(FRenderViewpoint &mainvp)
 	{
 		openxrFrameActive = false;
 		if (vr_mode != VR_OPENXR)
+		{
+			openxrCalibrated = false;
 			return;
+		}
 
 		auto &xr = DGpuOpenXRSession::Get();
 		if (!xr.IsActive())
+		{
+			openxrCalibrated = false;
 			return; // no runtime installed, or the lifecycle in VulkanRenderDevice hasn't caught up yet
+		}
 
 		DGpuPose headPose;
-		openxrFrameActive = xr.BeginFrame(headPose); // false just means "skip this frame", e.g. not focused yet
+		if (!xr.BeginFrame(headPose))
+			return; // just a skipped frame (not focused yet, etc) - leave calibration alone
+
+		double yawDeg, pitchDeg, rollDeg;
+		QuatToOpenXRAngles(headPose, yawDeg, pitchDeg, rollDeg);
+
+		if (!openxrCalibrated)
+		{
+			openxrCalibrationYawDeg = mainvp.Angles.Yaw.Degrees() + yawDeg;
+			openxrCalibrated = true;
+		}
+
+		// overriding Angles (not just HWAngles) on purpose - CreateScene's BSP clip range is
+		// computed from Angles.Yaw directly, not HWAngles.Yaw, so a HWAngles-only override
+		// would clip the scene for the old facing direction while rendering the new one.
+		// mainvp here is r_viewpoint for the real frame, not the live player actor, so this
+		// doesn't touch aim/movement/hitscan - just this frame's render.
+		mainvp.Angles.Yaw = DAngle::fromDeg(openxrCalibrationYawDeg - yawDeg);
+		mainvp.Angles.Pitch = DAngle::fromDeg(-pitchDeg);
+		mainvp.Angles.Roll = DAngle::fromDeg(rollDeg);
+
+		// HWAngles.Yaw gets rederived from Angles.Yaw automatically (SetViewAngle, called once
+		// per eye inside SetupView) but Pitch/Roll aren't - R_SetupFrame sets those once, early,
+		// straight off Angles.Pitch/Roll (with a pixelstretch correction on pitch that this
+		// skips - a near-invisible approximation given everything else here is a first pass
+		// too). set them directly so they don't stay stuck on the pre-override values.
+		mainvp.HWAngles.Pitch = FAngle::fromDeg((float)-pitchDeg);
+		mainvp.HWAngles.Roll = FAngle::fromDeg((float)rollDeg);
+
+		openxrFrameActive = true;
 	}
 
-	// feeds this eye's real tracked pose/fov into vrmi_openxr for GetProjection/GetViewShift
-	// to pick up. hwYawDeg is the *existing* render yaw (driven by mouse/gamepad look, same
-	// as every other stereo mode uses) - head orientation itself isn't wired into the actual
-	// camera look direction yet, only position and fov are. see the commit message for why.
+	// feeds this eye's real tracked position/fov into vrmi_openxr for GetProjection/GetViewShift
+	// to pick up. hwYawDeg is read fresh each eye (SetupView recomputes it from Angles.Yaw,
+	// which BeginOpenXRFrame already overrode above), so the position shift and the camera's
+	// actual look direction stay consistent with each other.
 	void ApplyOpenXREye(VREyeInfo &eye, int eyeIndex, double hwYawDeg)
 	{
 		if (!openxrFrameActive)
@@ -203,7 +272,7 @@ sector_t* RenderViewpoint(FRenderViewpoint& mainvp, AActor* camera, IntRect* bou
 	auto vrmode = VRMode::GetVRMode(mainview && toscreen);
 	const int eyeCount = vrmode->mEyeCount;
 	if (mainview && toscreen)
-		BeginOpenXRFrame();
+		BeginOpenXRFrame(mainvp);
 	screen->FirstEye();
 	for (int eye_ix = 0; eye_ix < eyeCount; ++eye_ix)
 	{
