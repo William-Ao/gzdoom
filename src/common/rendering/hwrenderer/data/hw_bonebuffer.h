@@ -7,9 +7,11 @@
 #include <mutex>
 
 class FRenderState;
+class DFrameBuffer;
 
 class BoneBuffer
 {
+	DFrameBuffer *fb = nullptr;
 	IDataBuffer *mBuffer;
 	IDataBuffer* mBufferPipeline[HW_MAX_PIPELINE_BUFFERS];
 	int mPipelineNbr;
@@ -24,7 +26,7 @@ class BoneBuffer
     unsigned int mMaxUploadSize;
 
 public:
-	BoneBuffer(int pipelineNbr = 1);
+	BoneBuffer(DFrameBuffer *fb, int pipelineNbr = 1);
 	~BoneBuffer();
 
 	void Clear();

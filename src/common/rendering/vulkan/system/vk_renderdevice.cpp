@@ -253,9 +253,9 @@ void VulkanRenderDevice::InitializeState()
 
 	mVertexData = new FFlatVertexBuffer(GetWidth(), GetHeight());
 	mSkyData = new FSkyVertexBuffer;
-	mViewpoints = new HWViewpointBuffer;
-	mLights = new FLightBuffer();
-	mBones = new BoneBuffer();
+	mViewpoints = new HWViewpointBuffer(this);
+	mLights = new FLightBuffer(this);
+	mBones = new BoneBuffer(this);
 
 	mShaderManager.reset(new VkShaderManager(this));
 	mDescriptorSetManager->Init();
@@ -291,16 +291,19 @@ void VulkanRenderDevice::InitializeState()
 	}
 }
 
-// lean init path for an offscreen peer device (see the peer constructor above). a peer
-// only ever holds duplicate GPU-resident copies of textures/buffers for the primary to
-// pull from - it never renders or presents on its own - so this skips every subsystem
-// that assumes a real swapchain (framebuffer/postprocess/render pass/raytrace manager,
-// screen/save render buffers, shader manager, render state) along with the on-screen
-// scene-drawing buffers (flat vertices, sky, viewpoints, lights, bones), none of which
-// mean anything without an actual frame being rendered. those also lean on the global
-// `screen` singleton internally (screen->CreateIndexBuffer() etc.) rather than `this`,
-// which would silently create them against the *primary* device instead of the peer -
-// another reason they don't belong here.
+// lean init path for an offscreen peer device (see the peer constructor above). still
+// skips everything that assumes a real swapchain (framebuffer/postprocess/render pass/
+// raytrace manager, screen/save render buffers, shader manager, render state) - none of
+// that means anything without an actual frame being rendered, which the peer still can't
+// do yet. does now build real per-device descriptor sets: HWViewpointBuffer/FLightBuffer/
+// BoneBuffer/VkDescriptorSetManager all used to be screen-> only or otherwise assumed a
+// single global device: fixed (see git history) so each can belong to whichever device
+// constructs it. that's enough for a VkMaterial to construct safely on the peer, but not
+// enough to actually draw with one yet - VkMaterial::GetDescriptorSet() pulls its texture
+// layers via FTexture::GetHardwareTexture() with no device argument (always slot 0, the
+// primary's), so a peer-owned material would silently bind the primary's textures until
+// that's threaded through too. flagging it here since it's the next landmine, not fixing
+// it blind - nothing calls it yet, so nothing is broken by leaving it.
 void VulkanRenderDevice::InitializePeerResources()
 {
 	switch (device->PhysicalDevice.Properties.Properties.vendorID)
@@ -321,6 +324,17 @@ void VulkanRenderDevice::InitializePeerResources()
 	mTextureManager.reset(new VkTextureManager(this));
 	mBufferManager.reset(new VkBufferManager(this));
 	mBufferManager->Init();
+
+	// these three used to be screen-> only (no device parameter at all) - fixed so each
+	// device can have its own. needed here because VkDescriptorSetManager::Init() below
+	// binds them by name (ViewpointUBO/LightBufferSSO/BoneBufferSSO) straight out of this
+	// device's own VkBufferManager.
+	mViewpoints = new HWViewpointBuffer(this);
+	mLights = new FLightBuffer(this);
+	mBones = new BoneBuffer(this);
+
+	mDescriptorSetManager.reset(new VkDescriptorSetManager(this));
+	mDescriptorSetManager->Init();
 }
 
 static void UpdateOpenXRLifecycle(VulkanRenderDevice *device)

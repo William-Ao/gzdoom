@@ -33,16 +33,16 @@
 
 static const int INITIAL_BUFFER_SIZE = 100;	// 100 viewpoints per frame should nearly always be enough
 
-HWViewpointBuffer::HWViewpointBuffer(int pipelineNbr):
-	mPipelineNbr(pipelineNbr)
+HWViewpointBuffer::HWViewpointBuffer(DFrameBuffer *fb, int pipelineNbr):
+	fb(fb), mPipelineNbr(pipelineNbr)
 {
 	mBufferSize = INITIAL_BUFFER_SIZE;
-	mBlockAlign = ((sizeof(HWViewpointUniforms) / screen->uniformblockalignment) + 1) * screen->uniformblockalignment;
+	mBlockAlign = ((sizeof(HWViewpointUniforms) / fb->uniformblockalignment) + 1) * fb->uniformblockalignment;
 	mByteSize = mBufferSize * mBlockAlign;
 
 	for (int n = 0; n < mPipelineNbr; n++)
 	{
-		mBufferPipeline[n] = screen->CreateDataBuffer(VIEWPOINT_BINDINGPOINT, false, true);
+		mBufferPipeline[n] = fb->CreateDataBuffer(VIEWPOINT_BINDINGPOINT, false, true);
 		mBufferPipeline[n]->SetData(mByteSize, nullptr, BufferUsageType::Persistent);
 	}
 
