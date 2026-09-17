@@ -226,7 +226,10 @@ protected:
 
 public:
 
-	IHardwareTexture* GetHardwareTexture(int translation, int scaleflags);
+	// device: 0 (default) is the primary and the only one that ever creates+uploads on
+	// demand - see the .cpp. any other device just returns whatever's already in that
+	// slot (or null), since only the primary drives texture creation/duplication.
+	IHardwareTexture* GetHardwareTexture(int translation, int scaleflags, int device = 0);
 	virtual FImageSource *GetImage() const { return nullptr; }
 	void CreateUpsampledTextureBuffer(FTextureBuffer &texbuffer, bool hasAlpha, bool checkonly);
 

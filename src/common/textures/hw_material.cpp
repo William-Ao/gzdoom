@@ -172,7 +172,7 @@ FMaterial::~FMaterial()
 //
 //===========================================================================
 
-IHardwareTexture* FMaterial::GetLayer(int i, int translation, MaterialLayerInfo** pLayer) const
+IHardwareTexture* FMaterial::GetLayer(int i, int translation, MaterialLayerInfo** pLayer, int device) const
 {
 	if ((mScaleFlags & CTF_Indexed) && i > 0 && layercallback)
 	{
@@ -189,7 +189,7 @@ IHardwareTexture* FMaterial::GetLayer(int i, int translation, MaterialLayerInfo*
 		auto& layer = mTextureLayers[i];
 		if (pLayer) *pLayer = &layer;
 		if (mScaleFlags & CTF_Indexed) translation = -1;
-		if (layer.layerTexture) return layer.layerTexture->GetHardwareTexture(translation, layer.scaleFlags);
+		if (layer.layerTexture) return layer.layerTexture->GetHardwareTexture(translation, layer.scaleFlags, device);
 	}
 	return nullptr;
 }

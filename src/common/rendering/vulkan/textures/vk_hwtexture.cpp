@@ -328,6 +328,12 @@ void VkMaterial::DeleteDescriptors()
 
 VulkanDescriptorSet* VkMaterial::GetDescriptorSet(const FMaterialState& state)
 {
+	// relies on the primary having already needed (and so eagerly duplicated, see
+	// DuplicateTextureToPeer) every one of this material's texture layers before a
+	// peer-owned material ever gets this far - true today since the primary drives all
+	// texture creation and the peer only ever mirrors it, but worth restating if that
+	// ever stops being a one-way relationship: a layer the peer needs that the primary
+	// never touched would come back null here and crash on the GetImage() call below.
 	auto base = Source();
 	int clampmode = state.mClampMode;
 	int translation = state.mTranslation;
@@ -348,9 +354,15 @@ VulkanDescriptorSet* VkMaterial::GetDescriptorSet(const FMaterialState& state)
 
 	VulkanSampler* sampler = fb->GetSamplerManager()->Get(clampmode);
 
+	// which device's copy of each layer's hardware texture to bind - the primary's (0) or,
+	// for a material that belongs to the dual-GPU peer, its own duplicated copy (1). without
+	// this every material would silently bind the primary's textures regardless of which
+	// device actually owns the material.
+	int device = fb->GetDeviceIndex();
+
 	WriteDescriptors update;
 	MaterialLayerInfo *layer;
-	auto systex = static_cast<VkHardwareTexture*>(GetLayer(0, state.mTranslation, &layer));
+	auto systex = static_cast<VkHardwareTexture*>(GetLayer(0, state.mTranslation, &layer, device));
 	auto systeximage = systex->GetImage(layer->layerTexture, state.mTranslation, layer->scaleFlags);
 	update.AddCombinedImageSampler(descriptor.get(), 0, systeximage->View.get(), sampler, systeximage->Layout);
 
@@ -358,7 +370,7 @@ VulkanDescriptorSet* VkMaterial::GetDescriptorSet(const FMaterialState& state)
 	{
 		for (int i = 1; i < numLayers; i++)
 		{
-			auto syslayer = static_cast<VkHardwareTexture*>(GetLayer(i, 0, &layer));
+			auto syslayer = static_cast<VkHardwareTexture*>(GetLayer(i, 0, &layer, device));
 			auto syslayerimage = syslayer->GetImage(layer->layerTexture, 0, layer->scaleFlags);
 			update.AddCombinedImageSampler(descriptor.get(), i, syslayerimage->View.get(), sampler, syslayerimage->Layout);
 		}
@@ -367,7 +379,7 @@ VulkanDescriptorSet* VkMaterial::GetDescriptorSet(const FMaterialState& state)
 	{
 		for (int i = 1; i < 3; i++)
 		{
-			auto syslayer = static_cast<VkHardwareTexture*>(GetLayer(i, translation, &layer));
+			auto syslayer = static_cast<VkHardwareTexture*>(GetLayer(i, translation, &layer, device));
 			auto syslayerimage = syslayer->GetImage(layer->layerTexture, 0, layer->scaleFlags);
 			update.AddCombinedImageSampler(descriptor.get(), i, syslayerimage->View.get(), sampler, syslayerimage->Layout);
 		}

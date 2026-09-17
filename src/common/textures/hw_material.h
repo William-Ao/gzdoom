@@ -65,7 +65,10 @@ public:
 		return mTextureLayers.Size();
 	}
 
-	IHardwareTexture *GetLayer(int i, int translation, MaterialLayerInfo **pLayer = nullptr) const;
+	// device: which device's copy of the layer's hardware texture to fetch - see
+	// FHardwareTextureContainer::MAX_DEVICES. defaults to 0 (the primary) for every
+	// existing single-device caller; only a peer-aware caller needs to pass 1.
+	IHardwareTexture *GetLayer(int i, int translation, MaterialLayerInfo **pLayer = nullptr, int device = 0) const;
 
 
 	static FMaterial *ValidateTexture(FGameTexture * tex, int scaleflags, bool create = true);

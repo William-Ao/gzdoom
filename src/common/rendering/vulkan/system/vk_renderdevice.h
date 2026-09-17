@@ -64,6 +64,11 @@ public:
 	// null otherwise (single-GPU machine, or the peer failed to construct). only ever
 	// set on the primary; a peer never has a peer of its own.
 	VulkanRenderDevice* GetPeerDevice() const { return mPeerDevice.get(); }
+	// this device's slot in FHardwareTextureContainer/FGameTexture::Material - 0 for the
+	// primary, 1 for the peer. lets device-generic code (FMaterial::GetLayer and friends)
+	// index the right per-device copy without needing to know about VulkanRenderDevice at
+	// all - it just asks whichever fb it has for its index.
+	int GetDeviceIndex() const { return mIsPeerDevice ? 1 : 0; }
 	bool CompileNextShader() override;
 	void PrecacheMaterial(FMaterial *mat, int translation) override;
 	void UpdatePalette() override;

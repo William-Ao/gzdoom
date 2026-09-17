@@ -437,14 +437,15 @@ void VulkanRenderDevice::PrecacheMaterial(FMaterial *mat, int translation)
 	if (mat->Source()->GetUseType() == ETextureType::SWCanvas) return;
 
 	MaterialLayerInfo* layer;
+	int device = GetDeviceIndex(); // this device's own copy - see VkMaterial::GetDescriptorSet()
 
-	auto systex = static_cast<VkHardwareTexture*>(mat->GetLayer(0, translation, &layer));
+	auto systex = static_cast<VkHardwareTexture*>(mat->GetLayer(0, translation, &layer, device));
 	systex->GetImage(layer->layerTexture, translation, layer->scaleFlags);
 
 	int numLayers = mat->NumLayers();
 	for (int i = 1; i < numLayers; i++)
 	{
-		auto syslayer = static_cast<VkHardwareTexture*>(mat->GetLayer(i, 0, &layer));
+		auto syslayer = static_cast<VkHardwareTexture*>(mat->GetLayer(i, 0, &layer, device));
 		syslayer->GetImage(layer->layerTexture, 0, layer->scaleFlags);
 	}
 }

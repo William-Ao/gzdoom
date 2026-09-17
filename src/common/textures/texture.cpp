@@ -543,12 +543,14 @@ outl:
 //
 //===========================================================================
 
-IHardwareTexture* FTexture::GetHardwareTexture(int translation, int scaleflags)
+IHardwareTexture* FTexture::GetHardwareTexture(int translation, int scaleflags, int device)
 {
 	int indexed = scaleflags & CTF_Indexed;
 	if (indexed) translation = -1;
-	IHardwareTexture* hwtex = SystemTextures.GetHardwareTexture(translation, scaleflags);
-	if (hwtex == nullptr)
+	IHardwareTexture* hwtex = SystemTextures.GetHardwareTexture(translation, scaleflags, device);
+	// only the primary creates on demand - any other device just gets whatever's already
+	// in its slot (populated by DuplicateTextureToPeer below, or not at all yet).
+	if (hwtex == nullptr && device == 0)
 	{
 		hwtex = screen->CreateHardwareTexture(indexed? 1 : 4);
 		SystemTextures.AddHardwareTexture(translation, scaleflags, hwtex);
