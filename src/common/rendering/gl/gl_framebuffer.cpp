@@ -168,7 +168,7 @@ void OpenGLFrameBuffer::InitializeState()
 
 	SetViewportRects(nullptr);
 
-	mVertexData = new FFlatVertexBuffer(GetWidth(), GetHeight(), screen->mPipelineNbr);
+	mVertexData = new FFlatVertexBuffer(this, GetWidth(), GetHeight(), screen->mPipelineNbr);
 	mSkyData = new FSkyVertexBuffer;
 	mViewpoints = new HWViewpointBuffer(this, screen->mPipelineNbr);
 	mLights = new FLightBuffer(this, screen->mPipelineNbr);

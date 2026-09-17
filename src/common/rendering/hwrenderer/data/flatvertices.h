@@ -8,6 +8,7 @@
 #include <mutex>
 
 class FRenderState;
+class DFrameBuffer;
 struct secplane_t;
 
 struct FFlatVertex
@@ -57,6 +58,7 @@ struct FFlatVertex
 class FFlatVertexBuffer
 {
 public:
+	DFrameBuffer *fb = nullptr;
 	TArray<FFlatVertex> vbo_shadowdata;
 	TArray<uint32_t> ibo_data;
 
@@ -90,7 +92,7 @@ public:
 		NUM_RESERVED = 20
 	};
 
-	FFlatVertexBuffer(int width, int height, int pipelineNbr = 1);
+	FFlatVertexBuffer(DFrameBuffer *fb, int width, int height, int pipelineNbr = 1);
 	~FFlatVertexBuffer();
 
 	void OutputResized(int width, int height);

@@ -251,7 +251,7 @@ void VulkanRenderDevice::InitializeState()
 	mRenderPassManager.reset(new VkRenderPassManager(this));
 	mRaytrace.reset(new VkRaytrace(this));
 
-	mVertexData = new FFlatVertexBuffer(GetWidth(), GetHeight());
+	mVertexData = new FFlatVertexBuffer(this, GetWidth(), GetHeight());
 	mSkyData = new FSkyVertexBuffer;
 	mViewpoints = new HWViewpointBuffer(this);
 	mLights = new FLightBuffer(this);
@@ -335,6 +335,21 @@ void VulkanRenderDevice::InitializePeerResources()
 
 	mDescriptorSetManager.reset(new VkDescriptorSetManager(this));
 	mDescriptorSetManager->Init();
+
+	mRenderPassManager.reset(new VkRenderPassManager(this));
+
+	// same "used to be screen-> only, fixed" story as the three buffers above. must come
+	// after mRenderPassManager - SetFormat() below calls fb->GetRenderPassManager().
+	mVertexData = new FFlatVertexBuffer(this, 1, 1);
+
+	// constructed but not BeginFrame()'d - that's what actually allocates the scene
+	// color/depth images, and needs a real width/height decision (the eventual per-eye
+	// render target size) that doesn't exist yet. safe to construct either way: the ctor
+	// is a no-op until BeginFrame() is called.
+	mScreenBuffers.reset(new VkRenderBuffers(this));
+	mActiveRenderBuffers = mScreenBuffers.get();
+
+	mRenderState.reset(new VkRenderState(this));
 }
 
 static void UpdateOpenXRLifecycle(VulkanRenderDevice *device)
