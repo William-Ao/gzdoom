@@ -350,6 +350,15 @@ void VulkanRenderDevice::InitializePeerResources()
 	mActiveRenderBuffers = mScreenBuffers.get();
 
 	mRenderState.reset(new VkRenderState(this));
+
+	// the primary gets its shaders compiled incrementally across startup frames (see the
+	// screen->CompileNextShader() loop in d_main.cpp) so a progress screen can update in
+	// between calls - nothing like that exists for the peer, and nothing needs it to, so
+	// just run the whole thing to completion here. checked: this is already fully
+	// self-contained per device (fb->device, fb->RaytracingEnabled()) with no screen->
+	// references at all - the compilation itself needed no fixing, just a driver.
+	mShaderManager.reset(new VkShaderManager(this));
+	while (!mShaderManager->CompileNextShader()) {}
 }
 
 static void UpdateOpenXRLifecycle(VulkanRenderDevice *device)
